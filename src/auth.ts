@@ -2,9 +2,11 @@ import NextAuth from "next-auth";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
+import { createTransport } from "nodemailer";
 import { db } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 import { adminEmails, getServerEnv } from "@/lib/env";
+import { createLoginEmail } from "@/lib/login-email";
 
 const env = getServerEnv();
 
@@ -38,6 +40,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             : undefined,
       },
       from: env.EMAIL_FROM,
+      async sendVerificationRequest({ identifier, url, expires, provider }) {
+        const transport = createTransport(provider.server);
+        const result = await transport.sendMail({
+          to: identifier,
+          from: provider.from,
+          ...createLoginEmail({ url, expires }),
+        });
+        const failed = [...(result.rejected ?? []), ...(result.pending ?? [])]
+          .filter(Boolean)
+          .map(String);
+
+        if (failed.length > 0) {
+          throw new Error(`登录邮件发送失败：${failed.join(", ")}`);
+        }
+      },
     }),
   ],
   events: {
