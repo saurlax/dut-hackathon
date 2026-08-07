@@ -28,7 +28,8 @@
 ## 数据库规则
 
 - 只在 `src/db/schema.ts` 修改数据库结构，然后运行 `npm run db:generate` 并审查生成的 SQL。
-- 共享环境和生产环境禁止使用 `drizzle-kit push`，部署时通过 `npm run db:migrate` 应用已提交的 migrations。
+- 共享环境和生产环境禁止使用 `drizzle-kit push`。`npm run build` 会先调用 `npm run db:migrate`，只应用已提交且尚未执行的 migrations。
+- 构建环境必须提供可连接且具有 migration 权限的 PostgreSQL 数据库；不得在应用请求中创建或修改表结构。
 - 队伍创建、成员替换、队长转让和最终确认等多表状态变更必须使用事务。
 - 保持一名用户一份报名、一名参赛者一支队伍、每队成员位置唯一、每队一份最终确认和作品提交等约束。
 - 每队最多四名成员。最终确认必须写入 `confirmation_members` 快照，不得替换为实时关联查询。
@@ -48,9 +49,7 @@
 npm scripts 必须兼容 Windows 和 Linux，不得加入只适用于 Bash 的环境变量赋值或可执行 shell 脚本。
 
 ```text
-npm run format:check
-npm run lint
-npm run typecheck
+npm run check
 npm test
 npm run test:integration
 npm run test:e2e

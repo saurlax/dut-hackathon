@@ -4,9 +4,12 @@ import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
-import { adminEmails } from "@/lib/env";
+import { adminEmails, getServerEnv } from "@/lib/env";
+
+const env = getServerEnv();
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: env.AUTH_SECRET,
   adapter: DrizzleAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
@@ -23,24 +26,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Nodemailer({
       server: {
-        host: process.env.EMAIL_SERVER_HOST ?? "localhost",
-        port: Number(process.env.EMAIL_SERVER_PORT ?? 1025),
-        secure: Number(process.env.EMAIL_SERVER_PORT ?? 1025) === 465,
+        host: env.EMAIL_SERVER_HOST,
+        port: env.EMAIL_SERVER_PORT,
+        secure: env.EMAIL_SERVER_PORT === 465,
         auth:
-          process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD
+          env.EMAIL_SERVER_USER && env.EMAIL_SERVER_PASSWORD
             ? {
-                user: process.env.EMAIL_SERVER_USER,
-                pass: process.env.EMAIL_SERVER_PASSWORD,
+                user: env.EMAIL_SERVER_USER,
+                pass: env.EMAIL_SERVER_PASSWORD,
               }
             : undefined,
       },
-      from: process.env.EMAIL_FROM ?? "noreply@localhost",
+      from: env.EMAIL_FROM,
     }),
   ],
   events: {
     async signIn({ user }) {
       if (!user.id || !user.email) return;
-      const role = adminEmails().has(user.email.toLowerCase())
+      const role = adminEmails(env.ADMIN_EMAILS).has(user.email.toLowerCase())
         ? "admin"
         : "participant";
       await db

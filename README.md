@@ -66,15 +66,16 @@ Copy-Item .env.example .env.local
 
 ## 数据库
 
-数据库结构定义在 `src/db/schema.ts`，SQL migration 保存在 `drizzle/`。应用启动时不会自动修改数据库结构。
+数据库结构定义在 `src/db/schema.ts`，SQL migration 保存在 `drizzle/`。`npm run build` 会在 Next.js 构建前自动执行尚未应用的 migration；应用请求和运行时启动不会修改数据库结构。
 
 ```bash
 npm run db:generate
 npm run db:migrate
-npm run db:studio
 ```
 
 修改 schema 后，应生成并检查 SQL migration，再与代码一同提交。业务数据涉及参赛者、队伍、成员、入队申请、最终确认成员快照和作品提交；认证表与业务表共用同一个 PostgreSQL 数据库。
+
+Drizzle 会在数据库中记录已执行的 migration，因此重复构建不会重复应用同一版本。构建环境必须预先提供可连接且具有建表权限的 `DATABASE_URL`；migration 不负责创建 PostgreSQL 数据库实例本身。
 
 ## 常用命令
 
@@ -82,10 +83,7 @@ npm run db:studio
 npm run dev
 npm run build
 npm start
-npm run format
-npm run format:check
-npm run lint
-npm run typecheck
+npm run check
 npm test
 npm run test:integration
 npm run test:e2e
@@ -108,7 +106,7 @@ npm run test:e2e
 1. 在 Zeabur 中从 Git 仓库创建应用服务，平台会自动识别 Next.js。
 2. 创建 PostgreSQL 服务，并将连接字符串映射到 `DATABASE_URL`。
 3. 配置全部生产环境变量，将 `AUTH_URL` 设置为实际 HTTPS 域名。
-4. 首次部署及数据库结构更新后，在应用环境运行 `npm run db:migrate`。
+4. 执行 `npm run build`；构建前会自动应用尚未执行的数据库 migration。
 5. 访问 `/api/health` 检查应用和数据库连接状态。
 
-构建命令为 `npm run build`，启动命令为 `npm start`。应用使用 Next.js standalone 输出，并会读取平台注入的 `PORT`。
+构建命令为 `npm run build`，启动命令为 `npm start`。构建服务必须能够连接 PostgreSQL，且数据库账户需要具备执行 migration 的权限。应用使用 Next.js standalone 输出，并会读取平台注入的 `PORT`。
