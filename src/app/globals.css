@@ -371,27 +371,6 @@
     );
   }
 
-  .signal-mark {
-    position: absolute;
-    inset: 25% 10% auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    background: var(--brand-gradient);
-    background-clip: text;
-    color: var(--primary);
-    filter: drop-shadow(0 12px 18px rgba(34, 61, 233, 0.18));
-    font-family: var(--font-display-stack);
-    font-size: clamp(4.75rem, 10vw, 8.5rem);
-    font-style: italic;
-    font-weight: 900;
-    letter-spacing: 0;
-    line-height: 0.75;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
   .shadow-hard {
     box-shadow: 3px 3px 0 0 var(--hard-shadow-color);
   }

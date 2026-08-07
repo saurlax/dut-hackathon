@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PartnerLogoGrid } from "@/components/partner-logo-grid";
 
 const processSteps = [
   "每位参赛者独立完成报名",
@@ -140,13 +142,17 @@ export default function Home() {
         </div>
 
         <div className="relative z-10 mt-10 flex justify-center md:mt-0 md:justify-end">
-          <div className="signal-arc" aria-hidden="true">
-            <div className="signal-mark">S2</div>
-            <div className="absolute inset-x-0 bottom-[16%] text-center">
-              <span className="tech-kicker text-[10px] text-primary">
-                DUT / HACK / 02
-              </span>
-            </div>
+          <div className="signal-arc">
+            <Image
+              src="/brand/dut-hackathon-s2.png"
+              alt="第二届大工黑客松标志"
+              width={2400}
+              height={2400}
+              sizes="(max-width: 767px) 66vw, 260px"
+              loading="eager"
+              fetchPriority="high"
+              className="absolute left-1/2 top-0 h-auto w-[66%] -translate-x-1/2 bg-transparent object-contain [filter:drop-shadow(0_12px_18px_rgba(34,61,233,0.18))]"
+            />
           </div>
         </div>
       </section>
@@ -250,6 +256,8 @@ export default function Home() {
           </ul>
         </Card>
       </section>
+
+      <PartnerLogoGrid />
     </div>
   );
 }

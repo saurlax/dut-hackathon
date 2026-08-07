@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { logout } from "@/app/actions";
@@ -10,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Code2, LogIn, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { LogIn, LogOut, ShieldCheck, UserRound } from "lucide-react";
 
 const publicLinks = [
   ["/browse-teams", "队伍大厅", "01"],
@@ -37,7 +38,15 @@ export async function SiteHeader() {
           className="mr-auto flex min-w-0 items-center gap-2.5 text-foreground"
         >
           <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-primary shadow-sm ring-1 ring-inset ring-primary/15">
-            <Code2 className="size-5" strokeWidth={2.4} />
+            <Image
+              src="/brand/dut-hackathon-s2.png"
+              alt=""
+              width={2400}
+              height={2400}
+              sizes="36px"
+              loading="eager"
+              className="size-full scale-110 object-contain"
+            />
           </span>
           <span className="flex min-w-0 flex-col leading-none">
             <span className="truncate font-display text-base font-black italic">
