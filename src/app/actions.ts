@@ -235,14 +235,11 @@ export async function saveTeam(
         const currentSize = await teamSize(tx, existing.id);
         if (currentSize > teamValues.maxSize)
           fail(`当前已有 ${currentSize} 名成员，不能缩减到更小人数`);
-        const recruitStatus =
-          existing.recruitStatus === "completed"
-            ? "completed"
-            : !isRecruitmentOpen(teamValues.recruitmentDeadline)
-              ? "paused"
-              : currentSize >= teamValues.maxSize
-                ? "full"
-                : "recruiting";
+        const recruitStatus = !isRecruitmentOpen(teamValues.recruitmentDeadline)
+          ? "paused"
+          : currentSize >= teamValues.maxSize
+            ? "full"
+            : "recruiting";
         await tx
           .update(teams)
           .set({
@@ -297,7 +294,12 @@ export async function saveTeam(
   revalidatePath("/create");
   revalidatePath("/my-team");
   revalidatePath("/browse-teams");
-  return { ok: true, message: "队伍资料已保存" };
+  return {
+    ok: true,
+    message: parsed.data.publicDisplay
+      ? "队伍资料已保存；审核通过且处于招募中时会显示在组队大厅"
+      : "队伍资料已保存；当前未授权公开，不会显示在组队大厅",
+  };
 }
 
 export async function changeTeamLeader(
@@ -743,36 +745,52 @@ export async function respondToMembership(
   };
 }
 
-export async function closeMyTeam() {
+export async function closeMyTeam(
+  _state: ActionState,
+  _formData: FormData,
+): Promise<ActionState> {
+  void _formData;
   const user = await requireUser("/my-team");
-  await db.transaction(async (tx) => {
-    const owned = await lockTeamForLeader(tx, user.id);
-    await tx
-      .update(teams)
-      .set({
-        recruitStatus: "completed",
-        publicDisplay: false,
-        publicConsentAt: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(teams.id, owned.team.id),
-          eq(teams.leaderParticipantId, owned.participant.id),
-        ),
-      );
-    await tx
-      .update(teamApplications)
-      .set({ status: "rejected", updatedAt: new Date() })
-      .where(
-        and(
-          eq(teamApplications.teamId, owned.team.id),
-          eq(teamApplications.status, "pending"),
-        ),
-      );
-  });
+  let teamId = "";
+  try {
+    await db.transaction(async (tx) => {
+      const owned = await lockTeamForLeader(tx, user.id);
+      teamId = owned.team.id;
+      await assertTeamMutable(tx, owned.team.id);
+      if (owned.team.recruitStatus !== "recruiting")
+        fail("当前队伍未处于招募中");
+      const changed = await tx
+        .update(teams)
+        .set({
+          recruitStatus: "paused",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(teams.id, owned.team.id),
+            eq(teams.leaderParticipantId, owned.participant.id),
+            eq(teams.recruitStatus, "recruiting"),
+          ),
+        )
+        .returning({ id: teams.id });
+      if (!changed.length) fail("招募状态已变化，请刷新后重试");
+      await tx
+        .update(teamApplications)
+        .set({ status: "rejected", updatedAt: new Date() })
+        .where(
+          and(
+            eq(teamApplications.teamId, owned.team.id),
+            eq(teamApplications.status, "pending"),
+          ),
+        );
+    });
+  } catch (error) {
+    return mutationFailure(error, "停止招募失败，请稍后重试");
+  }
   revalidatePath("/my-team");
   revalidatePath("/browse-teams");
+  if (teamId) revalidatePath(`/team/${teamId}`);
+  return { ok: true, message: "已停止招募" };
 }
 
 export async function submitConfirmation(

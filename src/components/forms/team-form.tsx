@@ -112,6 +112,7 @@ export function TeamForm({ team }: { team: TeamFormValue | null }) {
           name="publicDisplay"
           label="我同意公开队伍资料、联系渠道和已授权成员信息"
           defaultChecked={team?.publicDisplay ?? false}
+          description="未勾选时队伍不会出现在组队大厅；勾选后仍需管理员审核通过。"
         />
       </div>
       <FormMessage state={state} />

@@ -6,8 +6,8 @@ import {
   teamForUser,
 } from "@/lib/queries";
 import { requireUser } from "@/lib/authz";
-import { closeMyTeam, withdrawApplication } from "@/app/actions";
-import { displayNumber } from "@/lib/domain";
+import { withdrawApplication } from "@/app/actions";
+import { displayNumber, isRecruitmentOpen } from "@/lib/domain";
 import { PageHeading } from "@/components/page-heading";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,48 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeaderForm } from "@/components/forms/leader-form";
 import { ApplicationReviewButtons } from "@/components/application-review-buttons";
 import { MembershipActions } from "@/components/membership-actions";
+import { RecruitmentControl } from "@/components/recruitment-control";
+
+const recruitmentLabels = {
+  recruiting: "招募中",
+  paused: "已停止招募",
+  full: "已满员",
+  completed: "已完成组队",
+} as const;
+
+const auditLabels = {
+  pending: "等待审核",
+  approved: "审核通过",
+  rejected: "审核未通过",
+} as const;
+
+function teamHallStatus(team: {
+  publicDisplay: boolean;
+  publicConsentAt: Date | null;
+  auditStatus: keyof typeof auditLabels;
+  recruitStatus: keyof typeof recruitmentLabels;
+  recruitmentDeadline: string;
+}) {
+  const blockers: string[] = [];
+  if (!team.publicDisplay || !team.publicConsentAt) blockers.push("未授权公开");
+  if (team.auditStatus === "pending") blockers.push("等待管理员审核");
+  if (team.auditStatus === "rejected") blockers.push("审核未通过");
+  if (team.recruitStatus !== "recruiting")
+    blockers.push(recruitmentLabels[team.recruitStatus]);
+  if (
+    team.recruitStatus === "recruiting" &&
+    !isRecruitmentOpen(team.recruitmentDeadline)
+  )
+    blockers.push("招募截止日期已过");
+
+  return blockers.length
+    ? {
+        visible: false,
+        message: `当前不会显示在组队大厅：${blockers.join("、")}。`,
+      }
+    : { visible: true, message: "当前已显示在组队大厅。" };
+}
+
 export default async function MyTeamPage() {
   const user = await requireUser("/my-team");
   const [current, owned, mine] = await Promise.all([
@@ -24,6 +66,7 @@ export default async function MyTeamPage() {
     applicationsForUser(user.id),
   ]);
   const received = owned ? await applicationsForLeader(user.id) : [];
+  const hallStatus = current ? teamHallStatus(current.team) : null;
   return (
     <>
       <PageHeading
@@ -34,7 +77,7 @@ export default async function MyTeamPage() {
       {current ? (
         <Card className="mb-8 border-primary/20">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="eyebrow mb-2 text-primary">CURRENT TEAM</p>
                 <Badge variant="outline" className="nums">
@@ -44,15 +87,41 @@ export default async function MyTeamPage() {
                   {current.team.name}
                 </CardTitle>
               </div>
-              <Badge
-                variant="outline"
-                className="border-success/25 bg-success/10 text-success"
-              >
-                {current.team.recruitStatus}
-              </Badge>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    current.team.recruitStatus === "recruiting"
+                      ? "border-success/25 bg-success/10 text-success"
+                      : "border-warning/25 bg-warning/10 text-warning"
+                  }
+                >
+                  {recruitmentLabels[current.team.recruitStatus]}
+                </Badge>
+                <Badge variant="outline">
+                  {auditLabels[current.team.auditStatus]}
+                </Badge>
+                <Badge variant="outline">
+                  {current.team.publicDisplay && current.team.publicConsentAt
+                    ? "已授权公开"
+                    : "未公开"}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
+            {hallStatus && (
+              <div
+                role="status"
+                className={`mb-5 rounded-lg border p-3 text-sm ${
+                  hallStatus.visible
+                    ? "border-success/20 bg-success/10 text-success"
+                    : "border-warning/20 bg-warning/10 text-warning"
+                }`}
+              >
+                {hallStatus.message}
+              </div>
+            )}
             <div className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
               {current.members.map(({ participant, role, consentedAt }) => (
                 <div key={participant.id} className="bg-white/85 p-4 text-sm">
@@ -72,11 +141,9 @@ export default async function MyTeamPage() {
                   <Button variant="outline" asChild>
                     <Link href="/final-confirmation">最终确认</Link>
                   </Button>
-                  <form action={closeMyTeam}>
-                    <Button type="submit" variant="destructive">
-                      停止招募
-                    </Button>
-                  </form>
+                  <RecruitmentControl
+                    recruiting={current.team.recruitStatus === "recruiting"}
+                  />
                 </div>
                 {owned.members.filter(({ consentedAt }) => consentedAt).length >
                   1 && (

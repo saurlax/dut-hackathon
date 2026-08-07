@@ -385,20 +385,47 @@ export async function publicSubmissionDetail(id: string) {
 }
 
 export async function adminOverview() {
-  const [teamRows, participantRows, confirmationRows, submissionRows] =
-    await Promise.all([
-      db.select().from(teams).orderBy(desc(teams.createdAt)),
-      db.select().from(participants).orderBy(desc(participants.createdAt)),
-      db
-        .select()
-        .from(teamConfirmations)
-        .orderBy(desc(teamConfirmations.createdAt)),
-      db.select().from(submissions).orderBy(desc(submissions.createdAt)),
-    ]);
+  const [
+    teamRows,
+    participantRows,
+    confirmationRows,
+    submissionRows,
+    teamMemberRows,
+  ] = await Promise.all([
+    db.select().from(teams).orderBy(desc(teams.createdAt)),
+    db.select().from(participants).orderBy(desc(participants.createdAt)),
+    db
+      .select()
+      .from(teamConfirmations)
+      .orderBy(desc(teamConfirmations.createdAt)),
+    db.select().from(submissions).orderBy(desc(submissions.createdAt)),
+    db
+      .select({
+        teamId: teamMembers.teamId,
+        role: teamMembers.role,
+        position: teamMembers.position,
+        consentedAt: teamMembers.consentedAt,
+        participant: {
+          id: participants.id,
+          participantNumber: participants.participantNumber,
+          name: participants.name,
+        },
+      })
+      .from(teamMembers)
+      .innerJoin(participants, eq(teamMembers.participantId, participants.id))
+      .orderBy(asc(teamMembers.teamId), asc(teamMembers.position)),
+  ]);
+  const membersByTeam = new Map<string, (typeof teamMemberRows)[number][]>();
+  for (const member of teamMemberRows) {
+    const members = membersByTeam.get(member.teamId) ?? [];
+    members.push(member);
+    membersByTeam.set(member.teamId, members);
+  }
   return {
     teams: teamRows.map((item) => ({
       ...item,
       number: displayNumber("T", item.teamNumber),
+      members: membersByTeam.get(item.id) ?? [],
     })),
     participants: participantRows.map((item) => ({
       ...item,

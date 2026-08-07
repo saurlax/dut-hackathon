@@ -68,20 +68,29 @@ export function CheckField({
   name,
   label,
   defaultChecked = false,
+  description,
 }: {
   name: string;
   label: string;
   defaultChecked?: boolean;
+  description?: string;
 }) {
   return (
-    <label className="flex items-center gap-3 rounded-lg border border-primary/15 bg-white/65 p-4 text-sm font-medium transition-colors hover:border-primary/30 hover:bg-secondary/60">
+    <label className="flex items-start gap-3 rounded-lg border border-primary/15 bg-white/65 p-4 text-sm font-medium transition-colors hover:border-primary/30 hover:bg-secondary/60">
       <input
         type="checkbox"
         name={name}
         defaultChecked={defaultChecked}
-        className="size-4 accent-primary"
+        className="mt-0.5 size-4 shrink-0 accent-primary"
       />
-      {label}
+      <span>
+        <span className="block">{label}</span>
+        {description && (
+          <span className="mt-1 block text-xs leading-relaxed font-normal text-muted-foreground">
+            {description}
+          </span>
+        )}
+      </span>
     </label>
   );
 }

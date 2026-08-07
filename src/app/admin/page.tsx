@@ -2,6 +2,11 @@ import { requireAdmin } from "@/lib/authz";
 import { adminOverview } from "@/lib/queries";
 import { displayNumber } from "@/lib/domain";
 import { AdminAuditButtons } from "@/components/admin-audit-buttons";
+import { AdminDetailDialog } from "@/components/admin-detail-dialog";
+import {
+  ParticipantRecordDetails,
+  TeamRecordDetails,
+} from "@/components/admin-record-details";
 import { PageHeading } from "@/components/page-heading";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,7 +65,15 @@ export default async function AdminPage() {
               <Badge key="s" variant="outline">
                 {p.auditStatus}
               </Badge>,
-              <AdminAuditButtons key="a" kind="participant" id={p.id} />,
+              <div key="a" className="flex flex-wrap items-center gap-2">
+                <AdminDetailDialog
+                  title={`${p.number} · ${p.name}`}
+                  description="查看完整报名资料后再执行审核。"
+                >
+                  <ParticipantRecordDetails participant={p} />
+                </AdminDetailDialog>
+                <AdminAuditButtons kind="participant" id={p.id} />
+              </div>,
             ])}
           />
         </TabsContent>
@@ -75,7 +88,15 @@ export default async function AdminPage() {
               <Badge key="s" variant="outline">
                 {t.auditStatus}
               </Badge>,
-              <AdminAuditButtons key="a" kind="team" id={t.id} />,
+              <div key="a" className="flex flex-wrap items-center gap-2">
+                <AdminDetailDialog
+                  title={`${t.number} · ${t.name}`}
+                  description="查看队伍资料、公开设置和成员确认情况后再执行审核。"
+                >
+                  <TeamRecordDetails team={t} />
+                </AdminDetailDialog>
+                <AdminAuditButtons kind="team" id={t.id} />
+              </div>,
             ])}
           />
         </TabsContent>

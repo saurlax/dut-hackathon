@@ -4,11 +4,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, pool } from "../../src/db/client";
 import {
   changeTeamLeader,
+  closeMyTeam,
   respondToMembership,
   reviewTeamApplication,
+  saveTeam,
   submitConfirmation,
 } from "../../src/app/actions";
 import {
+  adminOverview,
   publicSubmissionDetail,
   publicTeamDetail,
   publicTeams,
@@ -211,6 +214,101 @@ describe("PostgreSQL business constraints", () => {
         .insert(teamApplications)
         .values({ teamId: team.id, applicantId: applicant.id }),
     ).resolves.toBeDefined();
+  });
+  it("pauses recruitment with feedback and preserves public consent", async () => {
+    const leader = await makeParticipant("L"),
+      applicant = await makeParticipant("A"),
+      consentedAt = new Date(),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: consentedAt,
+      });
+    const [application] = await db
+      .insert(teamApplications)
+      .values({ teamId: team.id, applicantId: applicant.id })
+      .returning();
+    authUser.id = leader.userId;
+
+    const result = await closeMyTeam(
+      { ok: false, message: "" },
+      new FormData(),
+    );
+    const [[storedTeam], [storedApplication]] = await Promise.all([
+      db.select().from(teams).where(eq(teams.id, team.id)),
+      db
+        .select()
+        .from(teamApplications)
+        .where(eq(teamApplications.id, application.id)),
+    ]);
+
+    expect(result).toEqual({ ok: true, message: "已停止招募" });
+    expect(storedTeam).toMatchObject({
+      recruitStatus: "paused",
+      publicDisplay: true,
+    });
+    expect(storedTeam.publicConsentAt).toEqual(consentedAt);
+    expect(storedApplication.status).toBe("rejected");
+  });
+  it("reopens an editable legacy completed team when its form is saved", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id, 4, { recruitStatus: "completed" });
+    authUser.id = leader.userId;
+
+    const result = await saveTeam(
+      { ok: false, message: "" },
+      actionForm({
+        name: team.name,
+        contact: team.contact,
+        description: team.description,
+        recruitmentDeadline: "2099-12-31",
+        maxSize: "4",
+        publicDisplay: "on",
+      }),
+    );
+    const [storedTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, team.id));
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("审核通过");
+    expect(storedTeam).toMatchObject({
+      recruitStatus: "recruiting",
+      publicDisplay: true,
+      auditStatus: "pending",
+    });
+    expect(storedTeam.publicConsentAt).toBeInstanceOf(Date);
+  });
+  it("includes the team roster needed by the admin detail dialog", async () => {
+    const leader = await makeParticipant("队长"),
+      member = await makeParticipant("成员"),
+      team = await makeTeam(leader.id);
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      role: "开发",
+      position: 2,
+      consentedAt: null,
+    });
+
+    const overview = await adminOverview();
+    const record = overview.teams.find((item) => item.id === team.id);
+
+    expect(record?.members).toHaveLength(2);
+    expect(record?.members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "队长",
+          participant: expect.objectContaining({ name: "队长" }),
+        }),
+        expect.objectContaining({
+          role: "开发",
+          consentedAt: null,
+          participant: expect.objectContaining({ name: "成员" }),
+        }),
+      ]),
+    );
   });
   it("keeps private or unaudited member identities out of public team queries", async () => {
     const leader = await makeParticipant("L", {
