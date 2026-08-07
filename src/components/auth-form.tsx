@@ -23,11 +23,13 @@ export function AuthForm({ callbackUrl }: { callbackUrl: string }) {
   });
   return (
     <form
-      onSubmit={form.handleSubmit((_values, event) => {
-        if (!event) return;
-        const formData = new FormData(event.currentTarget as HTMLFormElement);
-        startTransition(() => action(formData));
-      })}
+      onSubmit={(event) => {
+        const formElement = event.currentTarget;
+        void form.handleSubmit(() => {
+          const formData = new FormData(formElement);
+          startTransition(() => action(formData));
+        })(event);
+      }}
       className="space-y-5"
     >
       <input type="hidden" name="callbackUrl" value={callbackUrl} />
