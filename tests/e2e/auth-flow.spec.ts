@@ -41,11 +41,12 @@ test("magic-link user completes registration and creates a team", async ({
     学院: "计算机",
     年级: "本科",
     学号: `E2E${Date.now()}`,
-    报名方式: "个人报名，正在找队伍",
     公开联系方式: email,
   };
   for (const [label, value] of Object.entries(values))
     await page.getByLabel(label, { exact: false }).fill(value);
+  await page.getByLabel("报名方式", { exact: false }).click();
+  await page.getByRole("option", { name: "个人报名，正在找队伍" }).click();
   await page.getByRole("button", { name: "提交报名" }).click();
   await expect(page.getByRole("status")).toContainText("已保存");
   await page.goto("/create");

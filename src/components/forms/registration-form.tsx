@@ -4,12 +4,28 @@ import { saveRegistration } from "@/app/actions";
 import { initialActionState } from "@/lib/domain";
 import type { participants } from "@/db/schema";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   CheckField,
   FormMessage,
   TextAreaField,
   TextField,
 } from "./form-parts";
+
+const registrationMethods = [
+  "个人报名，正在找队伍",
+  "已经加入队伍",
+  "个人参赛，不再组队",
+  "暂未确定",
+] as const;
+
 type Participant = typeof participants.$inferSelect;
 export function RegistrationForm({
   participant,
@@ -68,13 +84,30 @@ export function RegistrationForm({
           defaultValue={participant?.studentId}
           required
         />
-        <TextField
-          name="registrationMethod"
-          label="报名方式"
-          defaultValue={participant?.registrationMethod ?? "暂未确定"}
-          required
-          placeholder="个人报名，正在找队伍"
-        />
+        <div className="space-y-2">
+          <Label
+            htmlFor="registrationMethod"
+            className="font-semibold text-foreground/85"
+          >
+            报名方式 *
+          </Label>
+          <Select
+            name="registrationMethod"
+            defaultValue={participant?.registrationMethod ?? "暂未确定"}
+            required
+          >
+            <SelectTrigger id="registrationMethod" className="w-full">
+              <SelectValue placeholder="请选择报名方式" />
+            </SelectTrigger>
+            <SelectContent>
+              {registrationMethods.map((method) => (
+                <SelectItem key={method} value={method}>
+                  {method}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <TextField
           name="skills"
           label="技能标签"
