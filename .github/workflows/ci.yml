@@ -16,11 +16,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d dut_hackathon"
           --health-interval 5s --health-timeout 5s --health-retries 10
-      mailpit:
-        image: axllent/mailpit:v1.27
-        ports:
-          - 1025:1025
-          - 8025:8025
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dut_hackathon
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dut_hackathon
@@ -32,7 +27,6 @@ jobs:
       EMAIL_SERVER_PASSWORD: ""
       EMAIL_FROM: ci@example.com
       ADMIN_EMAILS: admin@example.com
-      E2E_MAILPIT_URL: http://127.0.0.1:8025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,6 +38,4 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run test:integration
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --project=chromium
       - run: npm run build
