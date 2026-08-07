@@ -1,17 +1,46 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, pool } from "../../src/db/client";
 import {
+  changeTeamLeader,
+  respondToMembership,
+  reviewTeamApplication,
+  submitConfirmation,
+} from "../../src/app/actions";
+import {
+  publicSubmissionDetail,
+  publicTeamDetail,
+  publicTeams,
+  showcase,
+} from "../../src/lib/queries";
+import {
+  confirmationMembers,
   participants,
+  submissions,
   teamApplications,
+  teamConfirmations,
   teamMembers,
   teams,
   users,
 } from "../../src/db/schema";
 
+const authUser = vi.hoisted(() => ({ id: "", email: "test@example.com" }));
+
+vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next-auth", () => ({ AuthError: class AuthError extends Error {} }));
+vi.mock("@/auth", () => ({ signIn: vi.fn(), signOut: vi.fn() }));
+vi.mock("@/lib/authz", () => ({
+  requireUser: vi.fn(async () => ({ ...authUser })),
+  requireAdmin: vi.fn(async () => ({ ...authUser, role: "admin" })),
+}));
+
 const suffix = () => randomUUID().slice(0, 8);
-async function makeParticipant(name = "测试参赛者") {
+async function makeParticipant(
+  name = "测试参赛者",
+  overrides: Partial<typeof participants.$inferInsert> = {},
+) {
   const id = suffix();
   const [user] = await db
     .insert(users)
@@ -29,11 +58,16 @@ async function makeParticipant(name = "测试参赛者") {
       grade: "1",
       studentId: id,
       registrationMethod: "暂未确定",
+      ...overrides,
     })
     .returning();
   return participant;
 }
-async function makeTeam(leaderId: string, maxSize = 4) {
+async function makeTeam(
+  leaderId: string,
+  maxSize = 4,
+  overrides: Partial<typeof teams.$inferInsert> = {},
+) {
   const [team] = await db
     .insert(teams)
     .values({
@@ -41,8 +75,9 @@ async function makeTeam(leaderId: string, maxSize = 4) {
       leaderParticipantId: leaderId,
       contact: "contact",
       description: "desc",
-      recruitmentDeadline: "2026-12-31",
+      recruitmentDeadline: "2099-12-31",
       maxSize,
+      ...overrides,
     })
     .returning();
   await db.insert(teamMembers).values({
@@ -50,12 +85,21 @@ async function makeTeam(leaderId: string, maxSize = 4) {
     participantId: leaderId,
     role: "队长",
     position: 1,
+    consentedAt: new Date(),
   });
   return team;
 }
 
+function actionForm(values: Record<string, string>) {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(values)) formData.set(key, value);
+  return formData;
+}
+
 describe("PostgreSQL business constraints", () => {
   beforeEach(async () => {
+    vi.clearAllMocks();
+    authUser.id = "";
     await db.delete(teamApplications);
     await db.delete(teamMembers);
     await db.delete(teams);
@@ -80,6 +124,18 @@ describe("PostgreSQL business constraints", () => {
         registrationMethod: "暂未确定",
       }),
     ).rejects.toThrow();
+  });
+  it("uses fail-closed defaults for internal status and team visibility", async () => {
+    const leader = await makeParticipant();
+    const team = await makeTeam(leader.id);
+    expect(leader.isInternal).toBe(false);
+    expect(team.publicDisplay).toBe(false);
+    expect(team.publicConsentAt).toBeNull();
+    const [membership] = await db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, team.id));
+    expect(membership.consentedAt).toBeInstanceOf(Date);
   });
   it("prevents one participant joining two teams", async () => {
     const leader1 = await makeParticipant("L1"),
@@ -111,7 +167,7 @@ describe("PostgreSQL business constraints", () => {
             leaderParticipantId: leader.id,
             contact: "c",
             description: "d",
-            recruitmentDeadline: "2026-12-31",
+            recruitmentDeadline: "2099-12-31",
           })
           .returning();
         await tx
@@ -132,5 +188,397 @@ describe("PostgreSQL business constraints", () => {
       .values({ teamId: team.id, applicantId: applicant.id, message: "Hello" })
       .returning();
     expect(application.status).toBe("pending");
+  });
+  it("allows only one pending application per applicant and team", async () => {
+    const leader = await makeParticipant("L"),
+      applicant = await makeParticipant("A"),
+      team = await makeTeam(leader.id);
+    const [first] = await db
+      .insert(teamApplications)
+      .values({ teamId: team.id, applicantId: applicant.id })
+      .returning();
+    await expect(
+      db
+        .insert(teamApplications)
+        .values({ teamId: team.id, applicantId: applicant.id }),
+    ).rejects.toThrow();
+    await db
+      .update(teamApplications)
+      .set({ status: "withdrawn" })
+      .where(eq(teamApplications.id, first.id));
+    await expect(
+      db
+        .insert(teamApplications)
+        .values({ teamId: team.id, applicantId: applicant.id }),
+    ).resolves.toBeDefined();
+  });
+  it("keeps private or unaudited member identities out of public team queries", async () => {
+    const leader = await makeParticipant("L", {
+        auditStatus: "approved",
+        publicDisplay: false,
+      }),
+      member = await makeParticipant("M", {
+        auditStatus: "pending",
+        publicDisplay: true,
+      }),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+
+    const [list, detail] = await Promise.all([
+      publicTeams(),
+      publicTeamDetail(team.id),
+    ]);
+    expect(list.find(({ team: item }) => item.id === team.id)).toMatchObject({
+      leaderName: null,
+      currentSize: 2,
+    });
+    expect(detail).toMatchObject({
+      leaderName: "未公开",
+      currentSize: 2,
+      members: [],
+    });
+
+    await db
+      .update(teams)
+      .set({ auditStatus: "rejected" })
+      .where(eq(teams.id, team.id));
+    expect(await publicTeamDetail(team.id)).toBeNull();
+  });
+  it("requires public gates for submissions and their teams without selecting admin fields", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+    const [submission] = await db
+      .insert(submissions)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        projectName: "Private by default",
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+        publicDisplay: true,
+        auditStatus: "approved",
+        adminNote: "must never be selected publicly",
+      })
+      .returning();
+
+    expect(await showcase()).toEqual([]);
+    expect(await publicSubmissionDetail(submission.id)).toBeNull();
+    await db
+      .update(submissions)
+      .set({ publicConsentAt: new Date() })
+      .where(eq(submissions.id, submission.id));
+    const detail = await publicSubmissionDetail(submission.id);
+    expect(detail?.submission.projectName).toBe("Private by default");
+    expect("adminNote" in (detail?.submission ?? {})).toBe(false);
+    expect("submittedById" in (detail?.submission ?? {})).toBe(false);
+    expect(await showcase()).toHaveLength(1);
+
+    await db
+      .update(teams)
+      .set({ auditStatus: "pending" })
+      .where(eq(teams.id, team.id));
+    expect(await showcase()).toEqual([]);
+    expect(await publicSubmissionDetail(submission.id)).toBeNull();
+
+    await db
+      .update(teams)
+      .set({
+        auditStatus: "approved",
+        publicDisplay: false,
+        publicConsentAt: null,
+      })
+      .where(eq(teams.id, team.id));
+    expect(await showcase()).toEqual([]);
+    expect(await publicSubmissionDetail(submission.id)).toBeNull();
+  });
+  it("lets a legacy unconsented member invalidate an old final snapshot", async () => {
+    const leader = await makeParticipant("L"),
+      member = await makeParticipant("M"),
+      team = await makeTeam(leader.id);
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: null,
+    });
+    const [confirmation] = await db
+      .insert(teamConfirmations)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        allConfirmed: true,
+        commitment: true,
+      })
+      .returning();
+    await db.insert(confirmationMembers).values([
+      {
+        confirmationId: confirmation.id,
+        participantId: leader.id,
+        participantNumber: leader.participantNumber,
+        name: leader.name,
+        role: "队长",
+        position: 1,
+      },
+      {
+        confirmationId: confirmation.id,
+        participantId: member.id,
+        participantNumber: member.participantNumber,
+        name: member.name,
+        role: "成员",
+        position: 2,
+      },
+    ]);
+    await db
+      .update(teams)
+      .set({ recruitStatus: "completed" })
+      .where(eq(teams.id, team.id));
+    authUser.id = member.userId;
+
+    const result = await respondToMembership(
+      { ok: false, message: "" },
+      actionForm({ decision: "leave" }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("最终确认");
+    const [memberships, confirmations, snapshots, [storedTeam]] =
+      await Promise.all([
+        db
+          .select()
+          .from(teamMembers)
+          .where(eq(teamMembers.participantId, member.id)),
+        db
+          .select()
+          .from(teamConfirmations)
+          .where(eq(teamConfirmations.teamId, team.id)),
+        db
+          .select()
+          .from(confirmationMembers)
+          .where(eq(confirmationMembers.confirmationId, confirmation.id)),
+        db.select().from(teams).where(eq(teams.id, team.id)),
+      ]);
+    expect(memberships).toEqual([]);
+    expect(confirmations).toEqual([]);
+    expect(snapshots).toEqual([]);
+    expect(storedTeam.recruitStatus).toBe("recruiting");
+  });
+  it("requires a fresh final snapshot and preserves full status after legacy consent", async () => {
+    const leader = await makeParticipant("L"),
+      member = await makeParticipant("M"),
+      team = await makeTeam(leader.id, 2);
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: null,
+    });
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      allConfirmed: true,
+      commitment: true,
+    });
+    await db
+      .update(teams)
+      .set({ recruitStatus: "completed" })
+      .where(eq(teams.id, team.id));
+    authUser.id = member.userId;
+
+    const result = await respondToMembership(
+      { ok: false, message: "" },
+      actionForm({ decision: "confirm" }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("重新提交");
+    const [[membership], confirmations, [storedTeam]] = await Promise.all([
+      db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.participantId, member.id)),
+      db
+        .select()
+        .from(teamConfirmations)
+        .where(eq(teamConfirmations.teamId, team.id)),
+      db.select().from(teams).where(eq(teams.id, team.id)),
+    ]);
+    expect(membership.consentedAt).toBeInstanceOf(Date);
+    expect(confirmations).toEqual([]);
+    expect(storedTeam.recruitStatus).toBe("full");
+  });
+  it("serializes concurrent approvals at the final team slot", async () => {
+    const leader = await makeParticipant("L", {
+        auditStatus: "approved",
+        isInternal: true,
+      }),
+      applicantA = await makeParticipant("A", {
+        auditStatus: "approved",
+        isInternal: true,
+      }),
+      applicantB = await makeParticipant("B", {
+        auditStatus: "approved",
+        isInternal: true,
+      }),
+      team = await makeTeam(leader.id, 2, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+    const applications = await db
+      .insert(teamApplications)
+      .values([
+        { teamId: team.id, applicantId: applicantA.id },
+        { teamId: team.id, applicantId: applicantB.id },
+      ])
+      .returning();
+    authUser.id = leader.userId;
+
+    const results = await Promise.all(
+      applications.map((application) =>
+        reviewTeamApplication(
+          application.id,
+          { ok: false, message: "" },
+          actionForm({ decision: "approve" }),
+        ),
+      ),
+    );
+
+    expect(results.filter(({ ok }) => ok)).toHaveLength(1);
+    const roster = await db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, team.id));
+    expect(roster).toHaveLength(2);
+    const states = (
+      await db
+        .select({ status: teamApplications.status })
+        .from(teamApplications)
+        .where(eq(teamApplications.teamId, team.id))
+    )
+      .map(({ status }) => status)
+      .sort();
+    expect(states).toEqual(["approved", "rejected"]);
+  });
+  it("keeps the confirmation snapshot consistent with a competing approval", async () => {
+    const leader = await makeParticipant("L", {
+        auditStatus: "approved",
+        isInternal: true,
+      }),
+      applicant = await makeParticipant("A", {
+        auditStatus: "approved",
+        isInternal: true,
+      }),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+    const [application] = await db
+      .insert(teamApplications)
+      .values({ teamId: team.id, applicantId: applicant.id })
+      .returning();
+    authUser.id = leader.userId;
+
+    const [approvalResult, confirmationResult] = await Promise.all([
+      reviewTeamApplication(
+        application.id,
+        { ok: false, message: "" },
+        actionForm({ decision: "approve" }),
+      ),
+      submitConfirmation(
+        { ok: false, message: "" },
+        actionForm({ allConfirmed: "on" }),
+      ),
+    ]);
+
+    expect(confirmationResult.ok).toBe(true);
+    const [confirmation] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.teamId, team.id));
+    const [roster, snapshot, [storedApplication]] = await Promise.all([
+      db.select().from(teamMembers).where(eq(teamMembers.teamId, team.id)),
+      db
+        .select()
+        .from(confirmationMembers)
+        .where(eq(confirmationMembers.confirmationId, confirmation.id)),
+      db
+        .select()
+        .from(teamApplications)
+        .where(eq(teamApplications.id, application.id)),
+    ]);
+    expect(snapshot).toHaveLength(roster.length);
+    expect(storedApplication.status).toBe(
+      approvalResult.ok ? "approved" : "rejected",
+    );
+    expect(
+      roster.some(({ participantId }) => participantId === applicant.id),
+    ).toBe(approvalResult.ok);
+    expect(
+      snapshot.some(({ participantId }) => participantId === applicant.id),
+    ).toBe(approvalResult.ok);
+  });
+  it("serializes leader transfer against final confirmation", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" }),
+      successor = await makeParticipant("S", { auditStatus: "approved" }),
+      team = await makeTeam(leader.id);
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: successor.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    authUser.id = leader.userId;
+
+    const [transferResult, confirmationResult] = await Promise.all([
+      changeTeamLeader(
+        { ok: false, message: "" },
+        actionForm({ participantNumber: String(successor.participantNumber) }),
+      ),
+      submitConfirmation(
+        { ok: false, message: "" },
+        actionForm({ allConfirmed: "on" }),
+      ),
+    ]);
+
+    expect(
+      [transferResult, confirmationResult].filter(({ ok }) => ok),
+    ).toHaveLength(1);
+    const [storedTeam, roster, confirmations] = await Promise.all([
+      db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, team.id))
+        .then(([row]) => row),
+      db.select().from(teamMembers).where(eq(teamMembers.teamId, team.id)),
+      db
+        .select()
+        .from(teamConfirmations)
+        .where(eq(teamConfirmations.teamId, team.id)),
+    ]);
+    const leaders = roster.filter(({ role }) => role === "队长");
+    expect(leaders).toHaveLength(1);
+    expect(leaders[0].participantId).toBe(storedTeam.leaderParticipantId);
+    expect(confirmations).toHaveLength(confirmationResult.ok ? 1 : 0);
   });
 });

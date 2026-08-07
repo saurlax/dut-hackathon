@@ -11,13 +11,24 @@ import {
   TextField,
 } from "./form-parts";
 type Team = typeof teams.$inferSelect;
-export function TeamForm({
-  team,
-  memberNumbers = [],
-}: {
-  team: Team | null;
-  memberNumbers?: number[];
-}) {
+export type TeamFormValue = Pick<
+  Team,
+  | "name"
+  | "projectDirection"
+  | "track"
+  | "maturity"
+  | "techStack"
+  | "capabilities"
+  | "requiredRoles"
+  | "contact"
+  | "recruitmentDeadline"
+  | "maxSize"
+  | "description"
+  | "requirements"
+  | "allowExternal"
+  | "publicDisplay"
+>;
+export function TeamForm({ team }: { team: TeamFormValue | null }) {
   const [state, action, pending] = useActionState(saveTeam, initialActionState);
   const deadline = team?.recruitmentDeadline ?? "";
   return (
@@ -60,14 +71,6 @@ export function TeamForm({
           defaultValue={team?.requiredRoles.join(", ")}
         />
         <TextField
-          name="memberNumbers"
-          label="已有成员编号"
-          defaultValue={memberNumbers
-            .map((n) => `P${String(n).padStart(4, "0")}`)
-            .join(", ")}
-          placeholder="P0002, P0003"
-        />
-        <TextField
           name="contact"
           label="公开联系渠道"
           defaultValue={team?.contact}
@@ -107,8 +110,8 @@ export function TeamForm({
         />
         <CheckField
           name="publicDisplay"
-          label="在队伍大厅公开展示"
-          defaultChecked={team?.publicDisplay ?? true}
+          label="我同意公开队伍资料、联系渠道和已授权成员信息"
+          defaultChecked={team?.publicDisplay ?? false}
         />
       </div>
       <FormMessage state={state} />

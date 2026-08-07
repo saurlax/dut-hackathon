@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
   displayNumber,
+  eventDate,
   hasPublicContact,
+  isRecruitmentOpen,
   normalizeParticipantNumber,
   resolveGatedPageState,
 } from "./domain";
+
+describe("event date rules", () => {
+  it("uses the event timezone instead of the server timezone", () => {
+    expect(eventDate(new Date("2026-08-08T15:59:59.000Z"))).toBe("2026-08-08");
+    expect(eventDate(new Date("2026-08-08T16:00:00.000Z"))).toBe("2026-08-09");
+  });
+  it("keeps recruitment open through the local deadline date", () => {
+    const now = new Date("2026-08-08T16:00:00.000Z");
+    expect(isRecruitmentOpen("2026-08-09", now)).toBe(true);
+    expect(isRecruitmentOpen("2026-08-08", now)).toBe(false);
+  });
+});
 
 describe("public contact rules", () => {
   it("recognizes public display values from nested cell-like shapes", () =>

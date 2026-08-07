@@ -133,7 +133,7 @@ export function RegistrationForm({
         <CheckField
           name="isInternal"
           label="我是校内学生"
-          defaultChecked={participant?.isInternal ?? true}
+          defaultChecked={participant?.isInternal ?? false}
         />
         <CheckField
           name="publicDisplay"

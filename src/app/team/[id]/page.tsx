@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
-import { teamDetail } from "@/lib/queries";
-import { displayNumber } from "@/lib/domain";
+import { publicTeamDetail } from "@/lib/queries";
+import { displayNumber, isRecruitmentOpen } from "@/lib/domain";
 import { ApplicationForm } from "@/components/application-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,9 +15,9 @@ export default async function TeamDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [detail, session] = await Promise.all([teamDetail(id), auth()]);
+  const [detail, session] = await Promise.all([publicTeamDetail(id), auth()]);
   if (!detail) notFound();
-  const { team, leaderName, members } = detail;
+  const { team, leaderName, members, currentSize } = detail;
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <Link
@@ -47,7 +47,7 @@ export default async function TeamDetailPage({
           {team.name}
         </h1>
         <p className="label-mono mt-3 text-[11px] text-muted-foreground">
-          队长 · {leaderName} · {members.length}/{team.maxSize} 人
+          队长 · {leaderName} · {currentSize}/{team.maxSize} 人
         </p>
       </div>
       <Card>
@@ -90,22 +90,34 @@ export default async function TeamDetailPage({
           <Separator />
           <div>
             <h2 className="font-display text-lg font-semibold">当前成员</h2>
-            <ul className="mt-3 grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
-              {members.map(({ participant, role }) => (
-                <li key={participant.id} className="bg-white/85 p-4 text-sm">
-                  {participant.name}
-                  <span className="label-mono float-right text-[10px] text-muted-foreground">
-                    {role}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {members.length ? (
+              <ul className="mt-3 grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
+                {members.map(({ participant, role }) => (
+                  <li key={participant.id} className="bg-white/85 p-4 text-sm">
+                    {participant.name}
+                    <span className="label-mono float-right text-[10px] text-muted-foreground">
+                      {role}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">
+                成员尚未授权公开个人信息。
+              </p>
+            )}
+            {currentSize > members.length && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                另有 {currentSize - members.length} 名成员未公开姓名。
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
       {session?.user &&
         team.recruitStatus === "recruiting" &&
-        members.length < team.maxSize && (
+        isRecruitmentOpen(team.recruitmentDeadline) &&
+        currentSize < team.maxSize && (
           <Card>
             <CardHeader>
               <p className="eyebrow text-primary">APPLICATION</p>

@@ -60,7 +60,7 @@ export default async function TeamsPage({
                     {team.name}
                   </CardTitle>
                   <p className="label-mono text-[10px] text-muted-foreground">
-                    队长 · {leaderName}
+                    队长 · {leaderName ?? "未公开"}
                   </p>
                 </CardHeader>
                 <CardContent>

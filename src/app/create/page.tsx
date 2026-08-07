@@ -36,12 +36,26 @@ export default async function CreateTeamPage() {
         description="清晰的项目方向与公开联系方式，会让合适的伙伴更容易找到你。"
       />
       <TeamForm
-        team={owned?.team ?? null}
-        memberNumbers={owned?.members
-          .filter(
-            ({ participant: p }) => p.id !== owned.team.leaderParticipantId,
-          )
-          .map(({ participant: p }) => p.participantNumber)}
+        team={
+          owned
+            ? {
+                name: owned.team.name,
+                projectDirection: owned.team.projectDirection,
+                track: owned.team.track,
+                maturity: owned.team.maturity,
+                techStack: owned.team.techStack,
+                capabilities: owned.team.capabilities,
+                requiredRoles: owned.team.requiredRoles,
+                contact: owned.team.contact,
+                recruitmentDeadline: owned.team.recruitmentDeadline,
+                maxSize: owned.team.maxSize,
+                description: owned.team.description,
+                requirements: owned.team.requirements,
+                allowExternal: owned.team.allowExternal,
+                publicDisplay: owned.team.publicDisplay,
+              }
+            : null
+        }
       />
     </div>
   );

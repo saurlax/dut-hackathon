@@ -1,9 +1,7 @@
-import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { db } from "@/db";
-import { submissions, teams } from "@/db/schema";
+import { publicSubmissionDetail } from "@/lib/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 export default async function ShowcaseDetail({
@@ -12,20 +10,8 @@ export default async function ShowcaseDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const row = (
-    await db
-      .select({ submission: submissions, teamName: teams.name })
-      .from(submissions)
-      .innerJoin(teams, eq(submissions.teamId, teams.id))
-      .where(eq(submissions.id, id))
-      .limit(1)
-  )[0];
-  if (
-    !row ||
-    row.submission.auditStatus !== "approved" ||
-    !row.submission.publicDisplay
-  )
-    notFound();
+  const row = await publicSubmissionDetail(id);
+  if (!row) notFound();
   const { submission: s } = row;
   const sections = [
     ["项目背景", s.background],

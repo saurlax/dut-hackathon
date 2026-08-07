@@ -47,7 +47,7 @@ export default async function SubmissionPage() {
       <PageHeading
         eyebrow="SUBMISSION"
         title={submission ? "更新作品资料" : "提交参赛作品"}
-        description="所有描述字段最多 350 字；链接字段请填写可公开访问的 URL。"
+        description="作品默认不公开；只有明确勾选授权且审核通过后才会进入作品展示。"
       />
       <SubmissionForm submission={submission} />
     </div>

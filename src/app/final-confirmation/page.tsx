@@ -24,6 +24,9 @@ export default async function ConfirmationPage() {
       </>
     );
   const existing = await confirmationForTeam(owned.team.id);
+  const hasUnconfirmedMembers = owned.members.some(
+    ({ consentedAt }) => !consentedAt,
+  );
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeading
@@ -43,14 +46,14 @@ export default async function ConfirmationPage() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y divide-primary/10 overflow-hidden rounded-lg border border-primary/15 bg-white/65">
-            {owned.members.map(({ participant, role }) => (
+            {owned.members.map(({ participant, role, consentedAt }) => (
               <li key={participant.id} className="p-4">
                 <span className="nums mr-2 text-xs text-primary">
                   {displayNumber("P", participant.participantNumber)}
                 </span>
                 {participant.name}
                 <span className="label-mono float-right text-[10px] text-muted-foreground">
-                  {role}
+                  {consentedAt ? role : "待本人确认"}
                 </span>
               </li>
             ))}
@@ -60,9 +63,15 @@ export default async function ConfirmationPage() {
               已提交，审核状态：{existing.confirmation.auditStatus}
             </p>
           )}
-          <div className="mt-6">
-            <ConfirmationForm />
-          </div>
+          {hasUnconfirmedMembers ? (
+            <p className="mt-5 rounded-lg border border-warning/25 bg-warning/10 p-4 text-sm text-warning">
+              仍有成员尚未本人确认加入；确认或退出完成前不能锁定阵容。
+            </p>
+          ) : (
+            <div className="mt-6">
+              <ConfirmationForm />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

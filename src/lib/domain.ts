@@ -16,6 +16,16 @@ export function normalizeParticipantNumber(value: string) {
   return normalized;
 }
 
+export function eventDate(date = new Date()) {
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export function isRecruitmentOpen(deadline: string, date = new Date()) {
+  return deadline >= eventDate(date);
+}
+
 export function hasPublicContact(value: unknown): boolean {
   if (typeof value === "string") return value.trim().length > 0;
   if (Array.isArray(value)) return value.some(hasPublicContact);

@@ -2,10 +2,13 @@
 import { useActionState } from "react";
 import { saveSubmission } from "@/app/actions";
 import { initialActionState } from "@/lib/domain";
-import type { submissions } from "@/db/schema";
 import { Button } from "@/components/ui/button";
-import { FormMessage, TextAreaField, TextField } from "./form-parts";
-type Submission = typeof submissions.$inferSelect;
+import {
+  CheckField,
+  FormMessage,
+  TextAreaField,
+  TextField,
+} from "./form-parts";
 const linkNames = [
   "githubUrl",
   "demoUrl",
@@ -28,10 +31,25 @@ const linkLabels = [
   "项目封面",
   "补充附件",
 ];
+export interface SubmissionDraft {
+  id: string;
+  projectName: string;
+  track: string;
+  oneLiner: string;
+  background: string;
+  problemSolved: string;
+  coreFeatures: string;
+  techApproach: string;
+  innovation: string;
+  applicationValue: string;
+  usageGuide: string;
+  links: Record<string, string>;
+  publicDisplay: boolean;
+}
 export function SubmissionForm({
   submission,
 }: {
-  submission: Submission | null;
+  submission: SubmissionDraft | null;
 }) {
   const [state, action, pending] = useActionState(
     saveSubmission,
@@ -72,7 +90,7 @@ export function SubmissionForm({
             key={name}
             name={name}
             label={label}
-            defaultValue={submission?.[name as keyof Submission] as string}
+            defaultValue={submission?.[name as keyof SubmissionDraft] as string}
             required
             maxLength={350}
           />
@@ -87,6 +105,11 @@ export function SubmissionForm({
           />
         ))}
       </div>
+      <CheckField
+        name="publicDisplay"
+        label="我同意审核通过后公开展示作品说明及上述链接"
+        defaultChecked={submission?.publicDisplay ?? false}
+      />
       <FormMessage state={state} />
       <Button size="lg" disabled={pending}>
         {pending ? "保存中…" : submission ? "更新作品" : "提交作品"}

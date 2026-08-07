@@ -8,6 +8,20 @@
       "when": 1786106529514,
       "tag": "0000_last_colonel_america",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786119411307,
+      "tag": "0001_handy_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786119505163,
+      "tag": "0002_fair_moon_knight",
+      "breakpoints": true
     }
   ]
 }

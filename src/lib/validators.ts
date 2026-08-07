@@ -12,6 +12,10 @@ const stringList = z.preprocess(
       : value,
   z.array(z.string()).default([]),
 );
+const checkbox = z.preprocess(
+  (value) => value === true || value === "on",
+  z.boolean(),
+);
 
 export const emailLoginSchema = z.object({
   email: z.string().trim().email("请输入有效邮箱"),
@@ -26,7 +30,7 @@ export const participantSchema = z
     college: required("学院", 100),
     grade: required("年级", 30),
     studentId: required("学号", 50),
-    isInternal: z.coerce.boolean().default(true),
+    isInternal: checkbox,
     skills: stringList,
     techStack: stringList,
     desiredRoles: stringList,
@@ -45,7 +49,7 @@ export const participantSchema = z
     ]),
     teamRole: z.string().trim().max(50).default(""),
     publicContact: z.string().trim().max(200).default(""),
-    publicDisplay: z.coerce.boolean().default(false),
+    publicDisplay: checkbox,
   })
   .superRefine((value, ctx) => {
     if (value.publicDisplay && !value.publicContact) {
@@ -68,11 +72,10 @@ export const teamSchema = z.object({
   requirements: z.string().trim().max(1000).default(""),
   description: required("队伍介绍", 2000),
   contact: required("公开联系渠道", 200),
-  allowExternal: z.coerce.boolean().default(false),
-  publicDisplay: z.coerce.boolean().default(true),
+  allowExternal: checkbox,
+  publicDisplay: checkbox,
   recruitmentDeadline: z.iso.date(),
   maxSize: z.coerce.number().int().min(1).max(4),
-  memberNumbers: stringList,
 });
 
 export const applicationSchema = z.object({
@@ -106,6 +109,7 @@ export const submissionSchema = z.object({
   packageUrl: optionalUrl,
   coverUrl: optionalUrl,
   supplementaryUrl: optionalUrl,
+  publicDisplay: checkbox,
 });
 
 export function formDataObject(formData: FormData) {

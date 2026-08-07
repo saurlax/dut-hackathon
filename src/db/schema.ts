@@ -31,6 +31,8 @@ export const recruitStatus = pgEnum("recruit_status", [
 ]);
 export const applicationStatus = pgEnum("application_status", [
   "pending",
+  "approved",
+  "rejected",
   "withdrawn",
 ]);
 export const materialStatus = pgEnum("material_status", [
@@ -110,7 +112,7 @@ export const participants = pgTable(
     college: text("college").notNull(),
     grade: text("grade").notNull(),
     studentId: text("student_id").notNull(),
-    isInternal: boolean("is_internal").notNull().default(true),
+    isInternal: boolean("is_internal").notNull().default(false),
     skills: text("skills")
       .array()
       .notNull()
@@ -179,7 +181,8 @@ export const teams = pgTable(
     description: text("description").notNull().default(""),
     contact: text("contact").notNull(),
     allowExternal: boolean("allow_external").notNull().default(false),
-    publicDisplay: boolean("public_display").notNull().default(true),
+    publicDisplay: boolean("public_display").notNull().default(false),
+    publicConsentAt: timestamp("public_consent_at", { withTimezone: true }),
     recruitmentDeadline: date("recruitment_deadline").notNull(),
     maxSize: integer("max_size").notNull().default(4),
     recruitStatus: recruitStatus("recruit_status")
@@ -222,6 +225,7 @@ export const teamMembers = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    consentedAt: timestamp("consented_at", { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.teamId, table.participantId] }),
@@ -252,6 +256,9 @@ export const teamApplications = pgTable(
   },
   (table) => [
     index("applications_applicant_idx").on(table.applicantId, table.status),
+    uniqueIndex("applications_pending_unique_idx")
+      .on(table.teamId, table.applicantId)
+      .where(sql`${table.status} = 'pending'`),
   ],
 );
 
@@ -317,7 +324,8 @@ export const submissions = pgTable("submissions", {
   applicationValue: text("application_value").notNull(),
   usageGuide: text("usage_guide").notNull(),
   links: jsonb("links").$type<Record<string, string>>().notNull().default({}),
-  publicDisplay: boolean("public_display").notNull().default(true),
+  publicDisplay: boolean("public_display").notNull().default(false),
+  publicConsentAt: timestamp("public_consent_at", { withTimezone: true }),
   auditStatus: auditStatus("audit_status").notNull().default("pending"),
   materialStatus: materialStatus("material_status")
     .notNull()

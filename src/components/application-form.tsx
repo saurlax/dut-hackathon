@@ -20,6 +20,9 @@ export function ApplicationForm({ teamId }: { teamId: string }) {
         maxLength={200}
         placeholder="简单介绍你能为队伍带来什么"
       />
+      <p className="text-xs text-muted-foreground">
+        提交后，队长可看到你的姓名、参赛编号、校内身份和本条留言。
+      </p>
       {state.message && (
         <p
           className={

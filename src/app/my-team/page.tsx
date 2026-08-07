@@ -3,6 +3,7 @@ import {
   applicationsForLeader,
   applicationsForUser,
   teamForLeader,
+  teamForUser,
 } from "@/lib/queries";
 import { requireUser } from "@/lib/authz";
 import { closeMyTeam, withdrawApplication } from "@/app/actions";
@@ -13,75 +14,89 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeaderForm } from "@/components/forms/leader-form";
+import { ApplicationReviewButtons } from "@/components/application-review-buttons";
+import { MembershipActions } from "@/components/membership-actions";
 export default async function MyTeamPage() {
   const user = await requireUser("/my-team");
-  const [owned, mine, received] = await Promise.all([
+  const [current, owned, mine] = await Promise.all([
+    teamForUser(user.id),
     teamForLeader(user.id),
     applicationsForUser(user.id),
-    applicationsForLeader(user.id),
   ]);
+  const received = owned ? await applicationsForLeader(user.id) : [];
   return (
     <>
       <PageHeading
         eyebrow="MY TEAM"
         title="我的队伍与申请"
-        description="管理自己创建的队伍，或查看已提交的入队申请。"
+        description="队长通过申请审批添加成员；成员可以确认历史关系或随时退出未锁定的队伍。"
       />
-      {owned ? (
+      {current ? (
         <Card className="mb-8 border-primary/20">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <p className="eyebrow mb-2 text-primary">CURRENT TEAM</p>
                 <Badge variant="outline" className="nums">
-                  {displayNumber("T", owned.team.teamNumber)}
+                  {displayNumber("T", current.team.teamNumber)}
                 </Badge>
                 <CardTitle className="mt-3 text-2xl">
-                  {owned.team.name}
+                  {current.team.name}
                 </CardTitle>
               </div>
               <Badge
                 variant="outline"
                 className="border-success/25 bg-success/10 text-success"
               >
-                {owned.team.recruitStatus}
+                {current.team.recruitStatus}
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
-              {owned.members.map(({ participant, role }) => (
+              {current.members.map(({ participant, role, consentedAt }) => (
                 <div key={participant.id} className="bg-white/85 p-4 text-sm">
                   {participant.name}
                   <span className="label-mono float-right text-[10px] text-muted-foreground">
-                    {role}
+                    {consentedAt ? role : "待本人确认"}
                   </span>
                 </div>
               ))}
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Button asChild>
-                <Link href="/create">编辑队伍</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/final-confirmation">最终确认</Link>
-              </Button>
-              <form action={closeMyTeam}>
-                <Button type="submit" variant="destructive">
-                  停止招募
-                </Button>
-              </form>
-            </div>
-            {owned.members.length > 1 && (
-              <div className="mt-6 border-t pt-5">
-                <LeaderForm />
+            {owned ? (
+              <>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button asChild>
+                    <Link href="/create">编辑队伍</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/final-confirmation">最终确认</Link>
+                  </Button>
+                  <form action={closeMyTeam}>
+                    <Button type="submit" variant="destructive">
+                      停止招募
+                    </Button>
+                  </form>
+                </div>
+                {owned.members.filter(({ consentedAt }) => consentedAt).length >
+                  1 && (
+                  <div className="mt-6 border-t pt-5">
+                    <LeaderForm />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mt-5 border-t border-primary/10 pt-5">
+                <MembershipActions
+                  confirmed={Boolean(current.membership.consentedAt)}
+                />
               </div>
             )}
           </CardContent>
         </Card>
       ) : (
         <EmptyState
-          title="你还没有创建队伍"
+          title="你还没有加入队伍"
           description="你可以创建队伍，或从队伍大厅申请加入。"
         />
       )}
@@ -145,9 +160,9 @@ export default async function MyTeamPage() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     {application.message || "未填写留言"}
                   </p>
-                  <p className="mt-2 text-xs">
-                    联系：{participant.publicContact || "未公开"}
-                  </p>
+                  {application.status === "pending" && (
+                    <ApplicationReviewButtons applicationId={application.id} />
+                  )}
                 </div>
               ))
             ) : (
