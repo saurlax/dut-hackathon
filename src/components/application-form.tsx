@@ -12,7 +12,7 @@ export function ApplicationForm({ teamId }: { teamId: string }) {
     initialActionState,
   );
   return (
-    <form action={formAction} className="space-y-3">
+    <form action={formAction} className="space-y-4">
       <Label htmlFor="message">申请留言（可选）</Label>
       <Textarea
         id="message"
@@ -23,7 +23,7 @@ export function ApplicationForm({ teamId }: { teamId: string }) {
       {state.message && (
         <p
           className={
-            state.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"
+            state.ok ? "text-sm text-success" : "text-sm text-destructive"
           }
         >
           {state.message}

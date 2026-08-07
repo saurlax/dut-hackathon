@@ -42,18 +42,25 @@ export default async function MyRegistration() {
         title="我的报名"
         description="资料审核状态和公开设置一目了然。"
       />
-      <Card>
+      <Card className="border-primary/15 bg-primary/15">
         <CardContent className="grid gap-px overflow-hidden p-0 sm:grid-cols-2">
           {fields.map(([label, value]) => (
-            <div key={label} className="bg-white/70 p-5">
-              <p className="text-xs text-muted-foreground">{label}</p>
+            <div key={label} className="bg-white/90 p-5">
+              <p className="label-mono text-[10px] text-muted-foreground">
+                {label}
+              </p>
               <p className="mt-1 font-medium">{value}</p>
             </div>
           ))}
         </CardContent>
       </Card>
-      <div className="mt-5 flex gap-2">
-        <Badge>{p.auditStatus}</Badge>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Badge
+          variant="outline"
+          className="border-primary/25 bg-primary/10 text-primary"
+        >
+          {p.auditStatus}
+        </Badge>
         <Badge variant="outline">
           {p.publicDisplay ? "公开展示" : "未公开"}
         </Badge>

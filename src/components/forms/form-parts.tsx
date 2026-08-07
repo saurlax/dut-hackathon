@@ -19,7 +19,7 @@ export function TextField({
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={name}>
+      <Label htmlFor={name} className="font-semibold text-foreground/85">
         {label}
         {required && " *"}
       </Label>
@@ -49,7 +49,7 @@ export function TextAreaField({
 }) {
   return (
     <div className="space-y-2 sm:col-span-2">
-      <Label htmlFor={name}>
+      <Label htmlFor={name} className="font-semibold text-foreground/85">
         {label}
         {required && " *"}
       </Label>
@@ -74,12 +74,12 @@ export function CheckField({
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-3 rounded-xl border bg-white/60 p-4 text-sm font-medium">
+    <label className="flex items-center gap-3 rounded-lg border border-primary/15 bg-white/65 p-4 text-sm font-medium transition-colors hover:border-primary/30 hover:bg-secondary/60">
       <input
         type="checkbox"
         name={name}
         defaultChecked={defaultChecked}
-        className="size-4 accent-blue-600"
+        className="size-4 accent-primary"
       />
       {label}
     </label>
@@ -98,7 +98,7 @@ export function FormMessage({
   return (
     <div
       role="status"
-      className={`rounded-xl p-3 text-sm ${state.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-destructive"}`}
+      className={`rounded-lg border p-3 text-sm ${state.ok ? "border-success/20 bg-success/10 text-success" : "border-destructive/20 bg-destructive/10 text-destructive"}`}
     >
       <p>{state.message}</p>
       {state.fieldErrors && (

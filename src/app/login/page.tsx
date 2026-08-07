@@ -14,10 +14,11 @@ export default async function LoginPage({
 }) {
   const { callbackUrl = "/" } = await searchParams;
   return (
-    <div className="mx-auto grid min-h-[60vh] max-w-md place-items-center">
-      <Card className="w-full bg-white/80">
+    <div className="mx-auto grid min-h-[62vh] max-w-md place-items-center py-8">
+      <Card className="paper-grain w-full border-primary/20 bg-white/85">
         <CardHeader>
-          <CardTitle className="text-2xl">
+          <p className="eyebrow text-primary">SECURE SIGN IN</p>
+          <CardTitle className="text-3xl">
             <h1>邮箱登录</h1>
           </CardTitle>
           <CardDescription>

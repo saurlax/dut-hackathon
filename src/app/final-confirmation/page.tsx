@@ -31,20 +31,25 @@ export default async function ConfirmationPage() {
         title="确认最终参赛阵容"
         description="提交后将锁定当前成员快照，并停止招募。"
       />
-      <Card>
+      <Card className="border-primary/20">
         <CardHeader>
+          <p className="eyebrow text-primary">FINAL ROSTER</p>
           <div className="flex justify-between">
             <CardTitle>{owned.team.name}</CardTitle>
-            <Badge>{displayNumber("T", owned.team.teamNumber)}</Badge>
+            <Badge variant="outline" className="nums">
+              {displayNumber("T", owned.team.teamNumber)}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2">
+          <ul className="divide-y divide-primary/10 overflow-hidden rounded-lg border border-primary/15 bg-white/65">
             {owned.members.map(({ participant, role }) => (
-              <li key={participant.id} className="rounded-lg bg-secondary p-3">
-                {displayNumber("P", participant.participantNumber)} ·{" "}
+              <li key={participant.id} className="p-4">
+                <span className="nums mr-2 text-xs text-primary">
+                  {displayNumber("P", participant.participantNumber)}
+                </span>
                 {participant.name}
-                <span className="float-right text-muted-foreground">
+                <span className="label-mono float-right text-[10px] text-muted-foreground">
                   {role}
                 </span>
               </li>

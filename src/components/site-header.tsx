@@ -13,9 +13,9 @@ import {
 import { Code2, LogIn, LogOut, ShieldCheck, UserRound } from "lucide-react";
 
 const publicLinks = [
-  ["/browse-teams", "队伍大厅"],
-  ["/browse-pool", "找队友"],
-  ["/showcase", "作品展示"],
+  ["/browse-teams", "队伍大厅", "01"],
+  ["/browse-pool", "找队友", "02"],
+  ["/showcase", "作品展示", "03"],
 ] as const;
 
 const accountLinks = [
@@ -30,25 +30,43 @@ const accountLinks = [
 export async function SiteHeader() {
   const session = await auth();
   return (
-    <header className="sticky top-0 z-50 border-b border-blue-500/10 bg-background/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-5 px-4 sm:px-6">
-        <Link href="/" className="mr-auto flex items-center gap-2 font-black">
-          <span className="brand-gradient grid size-9 place-items-center rounded-xl text-white">
-            <Code2 className="size-5" />
+    <header className="sticky top-0 z-50 border-b border-primary/15 bg-background/90 shadow-xs backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+        <Link
+          href="/"
+          className="mr-auto flex min-w-0 items-center gap-2.5 text-foreground"
+        >
+          <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-primary shadow-sm ring-1 ring-inset ring-primary/15">
+            <Code2 className="size-5" strokeWidth={2.4} />
           </span>
-          <span className="hidden sm:inline">大工黑客松</span>
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="truncate font-display text-base font-black italic">
+              大工黑客松 S2
+            </span>
+            <span className="tech-kicker brand-text mt-1 hidden text-[9px] sm:block">
+              TEAM CENTER · THINK &amp; BUILD
+            </span>
+          </span>
         </Link>
-        <nav className="flex items-center gap-1 overflow-x-auto">
-          {publicLinks.map(([href, label]) => (
-            <Button key={href} variant="ghost" size="sm" asChild>
-              <Link href={href}>{label}</Link>
-            </Button>
+        <nav className="hidden items-center gap-6 md:flex">
+          {publicLinks.map(([href, label, index]) => (
+            <Link
+              key={href}
+              href={href}
+              className="group relative flex items-center gap-2 px-1 py-5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <span className="label-mono text-[10px] text-primary/70">
+                {index}
+              </span>
+              <span>{label}</span>
+              <span className="brand-gradient absolute -bottom-px left-0 h-0.5 w-0 transition-all duration-200 group-hover:w-full" />
+            </Link>
           ))}
         </nav>
         {session?.user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="rounded-lg">
                 <UserRound />
                 我的
               </Button>
@@ -83,7 +101,7 @@ export async function SiteHeader() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Button size="sm" asChild>
+          <Button size="sm" variant="outline" className="rounded-lg" asChild>
             <Link href="/login">
               <LogIn />
               邮箱登录
@@ -91,6 +109,20 @@ export async function SiteHeader() {
           </Button>
         )}
       </div>
+      <nav className="mx-auto flex max-w-6xl items-center gap-5 overflow-x-auto border-t border-primary/10 px-4 md:hidden">
+        {publicLinks.map(([href, label, index]) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex shrink-0 items-center gap-1.5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <span className="label-mono text-[9px] text-primary/70">
+              {index}
+            </span>
+            {label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }

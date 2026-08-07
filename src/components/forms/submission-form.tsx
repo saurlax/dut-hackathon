@@ -38,7 +38,7 @@ export function SubmissionForm({
     initialActionState,
   );
   return (
-    <form action={action} className="space-y-6">
+    <form action={action} className="form-surface space-y-6">
       <div className="grid gap-5 sm:grid-cols-2">
         <TextField
           name="projectName"

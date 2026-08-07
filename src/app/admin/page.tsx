@@ -30,18 +30,20 @@ export default async function AdminPage() {
         title="赛事管理后台"
         description="审核报名、队伍、最终确认与作品材料。所有写操作均经过服务端角色校验。"
       />
-      <section className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-primary/15 bg-primary/15 md:grid-cols-4">
         {stat.map(([label, value]) => (
-          <Card key={label}>
+          <Card key={label} className="rounded-none border-0 shadow-none">
             <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="mt-1 text-3xl font-black">{value}</p>
+              <p className="label-mono text-[10px] text-muted-foreground">
+                {label}
+              </p>
+              <p className="nums mt-2 text-3xl font-bold">{value}</p>
             </CardContent>
           </Card>
         ))}
       </section>
       <Tabs defaultValue="participants">
-        <TabsList className="mb-4 flex h-auto flex-wrap">
+        <TabsList className="mb-5 flex h-auto flex-wrap border border-primary/15 bg-white/65 p-1 shadow-xs">
           <TabsTrigger value="participants">参赛者</TabsTrigger>
           <TabsTrigger value="teams">队伍</TabsTrigger>
           <TabsTrigger value="confirmations">最终确认</TabsTrigger>
@@ -120,8 +122,9 @@ function AdminTable({
   rows: React.ReactNode[][];
 }) {
   return (
-    <Card>
+    <Card className="overflow-hidden border-primary/15">
       <CardHeader>
+        <p className="eyebrow text-primary">AUDIT QUEUE</p>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
@@ -130,7 +133,9 @@ function AdminTable({
             <TableHeader>
               <TableRow>
                 {headers.map((h) => (
-                  <TableHead key={h}>{h}</TableHead>
+                  <TableHead key={h} className="label-mono text-[10px]">
+                    {h}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>

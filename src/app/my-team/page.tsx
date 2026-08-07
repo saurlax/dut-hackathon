@@ -28,25 +28,32 @@ export default async function MyTeamPage() {
         description="管理自己创建的队伍，或查看已提交的入队申请。"
       />
       {owned ? (
-        <Card className="mb-8">
+        <Card className="mb-8 border-primary/20">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <Badge>{displayNumber("T", owned.team.teamNumber)}</Badge>
-                <CardTitle className="mt-3">{owned.team.name}</CardTitle>
+                <p className="eyebrow mb-2 text-primary">CURRENT TEAM</p>
+                <Badge variant="outline" className="nums">
+                  {displayNumber("T", owned.team.teamNumber)}
+                </Badge>
+                <CardTitle className="mt-3 text-2xl">
+                  {owned.team.name}
+                </CardTitle>
               </div>
-              <Badge variant="outline">{owned.team.recruitStatus}</Badge>
+              <Badge
+                variant="outline"
+                className="border-success/25 bg-success/10 text-success"
+              >
+                {owned.team.recruitStatus}
+              </Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
               {owned.members.map(({ participant, role }) => (
-                <div
-                  key={participant.id}
-                  className="rounded-lg bg-secondary p-3 text-sm"
-                >
+                <div key={participant.id} className="bg-white/85 p-4 text-sm">
                   {participant.name}
-                  <span className="float-right text-muted-foreground">
+                  <span className="label-mono float-right text-[10px] text-muted-foreground">
                     {role}
                   </span>
                 </div>
@@ -78,14 +85,19 @@ export default async function MyTeamPage() {
           description="你可以创建队伍，或从队伍大厅申请加入。"
         />
       )}
-      <section className="mt-10">
-        <h2 className="text-xl font-bold">我提交的申请</h2>
+      <section className="mt-10 border-t border-primary/15 pt-8">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-xl font-semibold">我提交的申请</h2>
+          <span className="label-mono text-[10px] text-muted-foreground">
+            SENT · {String(mine.length).padStart(2, "0")}
+          </span>
+        </div>
         <div className="mt-4 space-y-3">
           {mine.length ? (
             mine.map(({ application, teamName }) => (
               <div
                 key={application.id}
-                className="flex items-center justify-between rounded-xl border bg-white/70 p-4"
+                className="flex items-center justify-between rounded-lg border border-primary/15 bg-white/75 p-4 shadow-xs"
               >
                 <div>
                   <p className="font-medium">{teamName}</p>
@@ -109,14 +121,19 @@ export default async function MyTeamPage() {
         </div>
       </section>
       {owned && (
-        <section className="mt-10">
-          <h2 className="text-xl font-bold">收到的申请</h2>
+        <section className="mt-10 border-t border-primary/15 pt-8">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-xl font-semibold">收到的申请</h2>
+            <span className="label-mono text-[10px] text-muted-foreground">
+              RECEIVED · {String(received.length).padStart(2, "0")}
+            </span>
+          </div>
           <div className="mt-4 space-y-3">
             {received.length ? (
               received.map(({ application, participant }) => (
                 <div
                   key={application.id}
-                  className="rounded-xl border bg-white/70 p-4"
+                  className="rounded-lg border border-primary/15 bg-white/75 p-4 shadow-xs"
                 >
                   <div className="flex justify-between">
                     <p className="font-medium">

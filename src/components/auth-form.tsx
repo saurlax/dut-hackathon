@@ -53,7 +53,7 @@ export function AuthForm({ callbackUrl }: { callbackUrl: string }) {
         <p
           role="status"
           className={
-            state.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"
+            state.ok ? "text-sm text-success" : "text-sm text-destructive"
           }
         >
           {state.message}
