@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applicationSchema,
+  auditDecisionSchema,
   participantSchema,
   submissionSchema,
   teamSchema,
@@ -65,6 +66,21 @@ describe("business validation", () => {
     expect(
       applicationSchema.safeParse({ message: "x".repeat(201) }).success,
     ).toBe(false));
+  it("requires a reason when an audit is rejected", () => {
+    expect(
+      auditDecisionSchema.safeParse({ decision: "rejected", reason: "" })
+        .success,
+    ).toBe(false);
+    expect(
+      auditDecisionSchema.safeParse({
+        decision: "rejected",
+        reason: "资料不完整",
+      }).success,
+    ).toBe(true);
+    expect(
+      auditDecisionSchema.safeParse({ decision: "approved" }).success,
+    ).toBe(true);
+  });
   it("limits teams to four members", () =>
     expect(
       teamSchema.safeParse({

@@ -45,6 +45,9 @@ export interface SubmissionDraft {
   usageGuide: string;
   links: Record<string, string>;
   publicDisplay: boolean;
+  auditStatus: "pending" | "approved" | "rejected";
+  materialStatus: "pending" | "complete" | "incomplete";
+  adminNote: string;
 }
 export function SubmissionForm({
   submission,

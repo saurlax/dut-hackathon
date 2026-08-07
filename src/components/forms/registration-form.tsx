@@ -55,7 +55,7 @@ export function RegistrationForm({
         />
         <TextField
           name="email"
-          label="联系邮箱"
+          label="联系邮箱（可与登录邮箱不同）"
           type="email"
           defaultValue={participant?.email ?? email}
           required

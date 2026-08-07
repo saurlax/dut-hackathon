@@ -122,6 +122,13 @@ export default async function MyTeamPage() {
                 {hallStatus.message}
               </div>
             )}
+            {current.team.auditStatus === "rejected" &&
+              current.team.exception && (
+                <div className="mb-5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                  <span className="font-semibold">审核未通过：</span>
+                  {current.team.exception}
+                </div>
+              )}
             <div className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
               {current.members.map(({ participant, role, consentedAt }) => (
                 <div key={participant.id} className="bg-white/85 p-4 text-sm">
@@ -142,7 +149,11 @@ export default async function MyTeamPage() {
                     <Link href="/final-confirmation">最终确认</Link>
                   </Button>
                   <RecruitmentControl
-                    recruiting={current.team.recruitStatus === "recruiting"}
+                    status={current.team.recruitStatus}
+                    canResume={
+                      isRecruitmentOpen(current.team.recruitmentDeadline) &&
+                      current.members.length < current.team.maxSize
+                    }
                   />
                 </div>
                 {owned.members.filter(({ consentedAt }) => consentedAt).length >

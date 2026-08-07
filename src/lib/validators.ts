@@ -86,6 +86,21 @@ export const confirmationSchema = z.object({
   allConfirmed: z.literal("on", "请确认全员已确认"),
 });
 
+export const auditDecisionSchema = z
+  .object({
+    decision: z.enum(["approved", "rejected"]),
+    reason: z.string().trim().max(1000, "审核说明不能超过 1000 字").default(""),
+  })
+  .superRefine((value, ctx) => {
+    if (value.decision === "rejected" && !value.reason) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: "驳回时必须填写原因",
+      });
+    }
+  });
+
 const optionalUrl = z
   .union([z.literal(""), z.string().url("请输入有效链接")])
   .default("");

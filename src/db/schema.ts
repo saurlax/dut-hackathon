@@ -140,6 +140,7 @@ export const participants = pgTable(
     publicContact: text("public_contact").notNull().default(""),
     publicDisplay: boolean("public_display").notNull().default(false),
     auditStatus: auditStatus("audit_status").notNull().default("pending"),
+    adminNote: text("admin_note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

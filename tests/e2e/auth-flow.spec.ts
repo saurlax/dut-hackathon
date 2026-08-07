@@ -52,6 +52,7 @@ test("magic-link user completes registration and creates a team", async ({
   await page.goto("/create");
   await page.getByLabel("队伍名称").fill("E2E Team");
   await page.getByLabel("公开联系渠道").fill(email);
+  await page.getByLabel("招募截止日期").fill("2099-12-31");
   await page.getByLabel("队伍介绍").fill("End-to-end test team");
   await page.getByRole("button", { name: "创建队伍" }).click();
   await expect(page.getByRole("status")).toContainText("已保存");

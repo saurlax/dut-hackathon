@@ -7,6 +7,13 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+
+const auditLabels = {
+  pending: "等待审核",
+  approved: "审核通过",
+  rejected: "审核未通过",
+} as const;
+
 export default async function MyRegistration() {
   const user = await requireUser("/my-registration");
   const p = await participantForUser(user.id);
@@ -59,12 +66,18 @@ export default async function MyRegistration() {
           variant="outline"
           className="border-primary/25 bg-primary/10 text-primary"
         >
-          {p.auditStatus}
+          {auditLabels[p.auditStatus]}
         </Badge>
         <Badge variant="outline">
           {p.publicDisplay ? "公开展示" : "未公开"}
         </Badge>
       </div>
+      {p.auditStatus === "rejected" && p.adminNote && (
+        <div className="mt-5 rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+          <span className="font-semibold">驳回原因：</span>
+          {p.adminNote}
+        </div>
+      )}
       <Button className="mt-6" asChild>
         <Link href="/register">编辑资料</Link>
       </Button>

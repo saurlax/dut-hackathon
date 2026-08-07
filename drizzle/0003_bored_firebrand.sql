@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "admin_note" text DEFAULT '' NOT NULL;

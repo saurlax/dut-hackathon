@@ -20,6 +20,7 @@ import type { ActionState } from "@/lib/domain";
 import { isRecruitmentOpen } from "@/lib/domain";
 import {
   applicationSchema,
+  auditDecisionSchema,
   confirmationSchema,
   emailLoginSchema,
   formDataObject,
@@ -155,6 +156,22 @@ function assertTeamAcceptsApplications(
   if (currentSize >= team.maxSize) fail("这支队伍已满员");
 }
 
+function assertTeamCanApproveApplication(
+  team: typeof teams.$inferSelect,
+  currentSize: number,
+) {
+  if (
+    !team.publicDisplay ||
+    !team.publicConsentAt ||
+    team.auditStatus !== "approved" ||
+    (team.recruitStatus !== "recruiting" && team.recruitStatus !== "paused") ||
+    !isRecruitmentOpen(team.recruitmentDeadline)
+  ) {
+    fail("这支队伍当前不能同意入队申请");
+  }
+  if (currentSize >= team.maxSize) fail("这支队伍已满员");
+}
+
 export async function requestMagicLink(
   _state: ActionState,
   formData: FormData,
@@ -188,7 +205,6 @@ export async function saveRegistration(
   if (!parsed.success) return invalid(parsed.error);
   const values = {
     ...parsed.data,
-    email: user.email ?? parsed.data.email,
     updatedAt: new Date(),
   };
   await db
@@ -196,7 +212,7 @@ export async function saveRegistration(
     .values({ ...values, userId: user.id })
     .onConflictDoUpdate({
       target: participants.userId,
-      set: { ...values, auditStatus: "pending" },
+      set: { ...values, auditStatus: "pending", adminNote: "" },
     });
   revalidatePath("/register");
   revalidatePath("/my-registration");
@@ -539,7 +555,7 @@ export async function reviewTeamApplication(
         fail("申请人的报名资料尚未审核通过");
       await assertTeamMutable(tx, team.id);
       const currentSize = await teamSize(tx, team.id);
-      assertTeamAcceptsApplications(team, currentSize);
+      assertTeamCanApproveApplication(team, currentSize);
       if (!team.allowExternal && !applicant.isInternal)
         fail("这支队伍只接受校内成员");
       const membership = await tx
@@ -776,23 +792,54 @@ export async function closeMyTeam(
         )
         .returning({ id: teams.id });
       if (!changed.length) fail("招募状态已变化，请刷新后重试");
-      await tx
-        .update(teamApplications)
-        .set({ status: "rejected", updatedAt: new Date() })
-        .where(
-          and(
-            eq(teamApplications.teamId, owned.team.id),
-            eq(teamApplications.status, "pending"),
-          ),
-        );
     });
   } catch (error) {
-    return mutationFailure(error, "停止招募失败，请稍后重试");
+    return mutationFailure(error, "暂停招募失败，请稍后重试");
   }
   revalidatePath("/my-team");
   revalidatePath("/browse-teams");
   if (teamId) revalidatePath(`/team/${teamId}`);
-  return { ok: true, message: "已停止招募" };
+  return { ok: true, message: "已暂停招募；待处理申请已保留" };
+}
+
+export async function resumeMyTeam(
+  _state: ActionState,
+  _formData: FormData,
+): Promise<ActionState> {
+  void _formData;
+  const user = await requireUser("/my-team");
+  let teamId = "";
+  try {
+    await db.transaction(async (tx) => {
+      const owned = await lockTeamForLeader(tx, user.id);
+      teamId = owned.team.id;
+      await assertTeamMutable(tx, owned.team.id);
+      if (owned.team.recruitStatus !== "paused")
+        fail("当前队伍不处于暂停招募状态");
+      if (!isRecruitmentOpen(owned.team.recruitmentDeadline))
+        fail("招募截止日期已过，请先更新队伍资料");
+      if ((await teamSize(tx, owned.team.id)) >= owned.team.maxSize)
+        fail("队伍已满员，不能恢复招募");
+      const changed = await tx
+        .update(teams)
+        .set({ recruitStatus: "recruiting", updatedAt: new Date() })
+        .where(
+          and(
+            eq(teams.id, owned.team.id),
+            eq(teams.leaderParticipantId, owned.participant.id),
+            eq(teams.recruitStatus, "paused"),
+          ),
+        )
+        .returning({ id: teams.id });
+      if (!changed.length) fail("招募状态已变化，请刷新后重试");
+    });
+  } catch (error) {
+    return mutationFailure(error, "恢复招募失败，请稍后重试");
+  }
+  revalidatePath("/my-team");
+  revalidatePath("/browse-teams");
+  if (teamId) revalidatePath(`/team/${teamId}`);
+  return { ok: true, message: "已恢复招募" };
 }
 
 export async function submitConfirmation(
@@ -805,6 +852,18 @@ export async function submitConfirmation(
   try {
     await db.transaction(async (tx) => {
       const owned = await lockTeamForLeader(tx, user.id);
+      const existing = (
+        await tx
+          .select()
+          .from(teamConfirmations)
+          .where(eq(teamConfirmations.teamId, owned.team.id))
+          .limit(1)
+          .for("update")
+      )[0];
+      if (existing?.auditStatus === "pending")
+        fail("最终确认正在审核中，请勿重复提交");
+      if (existing?.auditStatus === "approved")
+        fail("最终确认已审核通过，无需重复提交");
       const members = await tx
         .select({
           participant: participants,
@@ -823,25 +882,28 @@ export async function submitConfirmation(
       );
       if (!leaderMember || leaderMember.role !== "队长")
         fail("队长与成员关系不一致，请联系管理员");
-      const [confirmation] = await tx
-        .insert(teamConfirmations)
-        .values({
-          teamId: owned.team.id,
-          submittedById: owned.participant.id,
-          allConfirmed: true,
-          commitment: true,
-        })
-        .onConflictDoUpdate({
-          target: teamConfirmations.teamId,
-          set: {
-            submittedById: owned.participant.id,
-            allConfirmed: true,
-            commitment: true,
-            auditStatus: "pending",
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
+      const [confirmation] = existing
+        ? await tx
+            .update(teamConfirmations)
+            .set({
+              submittedById: owned.participant.id,
+              allConfirmed: true,
+              commitment: true,
+              auditStatus: "pending",
+              exception: "",
+              updatedAt: new Date(),
+            })
+            .where(eq(teamConfirmations.id, existing.id))
+            .returning()
+        : await tx
+            .insert(teamConfirmations)
+            .values({
+              teamId: owned.team.id,
+              submittedById: owned.participant.id,
+              allConfirmed: true,
+              commitment: true,
+            })
+            .returning();
       await tx
         .delete(confirmationMembers)
         .where(eq(confirmationMembers.confirmationId, confirmation.id));
@@ -941,6 +1003,8 @@ export async function saveSubmission(
           set: {
             ...values,
             auditStatus: "pending",
+            materialStatus: "pending",
+            adminNote: "",
             updatedAt: now,
           },
         });
@@ -979,21 +1043,50 @@ export async function addAdminUser(
 export async function updateAudit(
   kind: "participant" | "team" | "confirmation" | "submission",
   id: string,
-  status: "pending" | "approved" | "rejected",
-) {
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   await requireAdmin();
-  const table = {
-    participant: participants,
-    team: teams,
-    confirmation: teamConfirmations,
-    submission: submissions,
-  }[kind];
-  await db
-    .update(table)
-    .set({ auditStatus: status, updatedAt: new Date() })
-    .where(eq(table.id, id));
+  const parsed = auditDecisionSchema.safeParse(formDataObject(formData));
+  if (!parsed.success) return invalid(parsed.error);
+  const { decision, reason } = parsed.data;
+  const note = decision === "rejected" ? reason : "";
+  const values = { auditStatus: decision, updatedAt: new Date() } as const;
+  try {
+    if (kind === "participant") {
+      await db
+        .update(participants)
+        .set({ ...values, adminNote: note })
+        .where(eq(participants.id, id));
+    } else if (kind === "team") {
+      await db
+        .update(teams)
+        .set({ ...values, exception: note })
+        .where(eq(teams.id, id));
+    } else if (kind === "confirmation") {
+      await db
+        .update(teamConfirmations)
+        .set({ ...values, exception: note })
+        .where(eq(teamConfirmations.id, id));
+    } else {
+      await db
+        .update(submissions)
+        .set({ ...values, adminNote: note })
+        .where(eq(submissions.id, id));
+    }
+  } catch (error) {
+    return mutationFailure(error, "更新审核状态失败，请稍后重试");
+  }
   revalidatePath("/admin");
+  revalidatePath("/my-registration");
+  revalidatePath("/my-team");
+  revalidatePath("/final-confirmation");
+  revalidatePath("/submission");
   revalidatePath("/browse-teams");
   revalidatePath("/browse-pool");
   revalidatePath("/showcase");
+  return {
+    ok: true,
+    message: decision === "approved" ? "审核已通过" : "已驳回并记录原因",
+  };
 }

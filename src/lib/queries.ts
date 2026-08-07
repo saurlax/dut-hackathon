@@ -8,7 +8,9 @@ import {
   eq,
   gte,
   ilike,
+  isNull,
   isNotNull,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -86,10 +88,16 @@ export async function publicParticipants(keyword = "") {
       publicContact: participants.publicContact,
     })
     .from(participants)
+    .leftJoin(teamMembers, eq(teamMembers.participantId, participants.id))
     .where(
       and(
         eq(participants.publicDisplay, true),
         eq(participants.auditStatus, "approved"),
+        isNull(teamMembers.participantId),
+        notInArray(participants.registrationMethod, [
+          "已经加入队伍",
+          "个人参赛，不再组队",
+        ]),
         keyword
           ? or(
               ilike(participants.name, `%${keyword}%`),
@@ -272,6 +280,54 @@ export async function applicationsForUser(userId: string) {
     .orderBy(desc(teamApplications.createdAt));
 }
 
+export async function teamApplicationContext(userId: string, teamId: string) {
+  const participant = await participantForUser(userId);
+  if (!participant) return null;
+
+  const [membership, pendingApplication, activeApplications] =
+    await Promise.all([
+      db
+        .select({ teamId: teamMembers.teamId })
+        .from(teamMembers)
+        .where(eq(teamMembers.participantId, participant.id))
+        .limit(1),
+      db
+        .select({
+          id: teamApplications.id,
+          createdAt: teamApplications.createdAt,
+        })
+        .from(teamApplications)
+        .where(
+          and(
+            eq(teamApplications.teamId, teamId),
+            eq(teamApplications.applicantId, participant.id),
+            eq(teamApplications.status, "pending"),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ value: count() })
+        .from(teamApplications)
+        .where(
+          and(
+            eq(teamApplications.applicantId, participant.id),
+            eq(teamApplications.status, "pending"),
+          ),
+        ),
+    ]);
+
+  return {
+    participant: {
+      auditStatus: participant.auditStatus,
+      adminNote: participant.adminNote,
+      isInternal: participant.isInternal,
+    },
+    membershipTeamId: membership[0]?.teamId ?? null,
+    pendingApplication: pendingApplication[0] ?? null,
+    activeApplicationCount: Number(activeApplications[0]?.value ?? 0),
+  };
+}
+
 export async function applicationsForLeader(userId: string) {
   const owned = await teamForLeader(userId);
   if (!owned) return [];
@@ -326,6 +382,9 @@ export async function submissionForTeam(teamId: string) {
           usageGuide: submissions.usageGuide,
           links: submissions.links,
           publicDisplay: submissions.publicDisplay,
+          auditStatus: submissions.auditStatus,
+          materialStatus: submissions.materialStatus,
+          adminNote: submissions.adminNote,
         })
         .from(submissions)
         .where(eq(submissions.teamId, teamId))

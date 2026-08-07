@@ -205,6 +205,11 @@ export function ParticipantRecordDetails({
                 </StatusBadge>
               ),
             },
+            {
+              label: "审核说明",
+              value: text(participant.adminNote),
+              wide: true,
+            },
             { label: "提交时间", value: dateTime(participant.createdAt) },
             { label: "最后更新", value: dateTime(participant.updatedAt) },
           ]}

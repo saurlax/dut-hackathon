@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/authz";
-import { participantForUser, teamForLeader } from "@/lib/queries";
+import { participantForUser, teamForLeader, teamForUser } from "@/lib/queries";
 import { PageHeading } from "@/components/page-heading";
 import { TeamForm } from "@/components/forms/team-form";
 import { EmptyState } from "@/components/empty-state";
@@ -7,9 +7,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 export default async function CreateTeamPage() {
   const user = await requireUser("/create");
-  const [participant, owned] = await Promise.all([
+  const [participant, owned, current] = await Promise.all([
     participantForUser(user.id),
     teamForLeader(user.id),
+    teamForUser(user.id),
   ]);
   if (!participant)
     return (
@@ -25,6 +26,23 @@ export default async function CreateTeamPage() {
         />
         <Button className="mt-4" asChild>
           <Link href="/register">去报名</Link>
+        </Button>
+      </>
+    );
+  if (current && !owned)
+    return (
+      <>
+        <PageHeading
+          eyebrow="CREATE TEAM"
+          title="你已经加入队伍"
+          description="每位参赛者只能加入一支队伍，队员不能同时创建新队伍。"
+        />
+        <EmptyState
+          title={`当前队伍：${current.team.name}`}
+          description="如需创建自己的队伍，请先在“我的队伍”中退出当前队伍。"
+        />
+        <Button className="mt-4" asChild>
+          <Link href="/my-team">查看我的队伍</Link>
         </Button>
       </>
     );
