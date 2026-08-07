@@ -1,0 +1,51 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: dut_hackathon
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dut_hackathon"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      mailpit:
+        image: axllent/mailpit:v1.27
+        ports:
+          - 1025:1025
+          - 8025:8025
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dut_hackathon
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dut_hackathon
+      AUTH_SECRET: ci-only-secret-that-is-at-least-thirty-two-characters
+      AUTH_URL: http://127.0.0.1:3000
+      EMAIL_SERVER_HOST: localhost
+      EMAIL_SERVER_PORT: 1025
+      EMAIL_SERVER_USER: ""
+      EMAIL_SERVER_PASSWORD: ""
+      EMAIL_FROM: ci@example.com
+      ADMIN_EMAILS: admin@example.com
+      E2E_MAILPIT_URL: http://127.0.0.1:8025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:integration
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --project=chromium
+      - run: npm run build

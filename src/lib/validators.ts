@@ -1,0 +1,113 @@
+import { z } from "zod";
+
+const required = (label: string, max = 200) =>
+  z.string().trim().min(1, `${label}不能为空`).max(max);
+const stringList = z.preprocess(
+  (value) =>
+    typeof value === "string"
+      ? value
+          .split(/[,，]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : value,
+  z.array(z.string()).default([]),
+);
+
+export const emailLoginSchema = z.object({
+  email: z.string().trim().email("请输入有效邮箱"),
+});
+
+export const participantSchema = z
+  .object({
+    name: required("姓名", 40),
+    phone: required("手机号", 30),
+    email: z.string().trim().email("请输入有效邮箱"),
+    school: required("学校", 100),
+    college: required("学院", 100),
+    grade: required("年级", 30),
+    studentId: required("学号", 50),
+    isInternal: z.coerce.boolean().default(true),
+    skills: stringList,
+    techStack: stringList,
+    desiredRoles: stringList,
+    projectExperience: z.string().trim().max(1000).default(""),
+    bio: z.string().trim().max(500).default(""),
+    portfolioUrl: z
+      .union([z.literal(""), z.string().url("请输入有效链接")])
+      .default(""),
+    availableTime: z.string().trim().max(100).default(""),
+    expectedTracks: stringList,
+    registrationMethod: z.enum([
+      "个人报名，正在找队伍",
+      "已经加入队伍",
+      "个人参赛，不再组队",
+      "暂未确定",
+    ]),
+    teamRole: z.string().trim().max(50).default(""),
+    publicContact: z.string().trim().max(200).default(""),
+    publicDisplay: z.coerce.boolean().default(false),
+  })
+  .superRefine((value, ctx) => {
+    if (value.publicDisplay && !value.publicContact) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["publicContact"],
+        message: "公开展示时必须填写联系方式",
+      });
+    }
+  });
+
+export const teamSchema = z.object({
+  name: required("队伍名称", 80),
+  track: stringList,
+  projectDirection: z.string().trim().max(200).default(""),
+  maturity: z.string().trim().max(50).default(""),
+  capabilities: stringList,
+  requiredRoles: stringList,
+  techStack: stringList,
+  requirements: z.string().trim().max(1000).default(""),
+  description: required("队伍介绍", 2000),
+  contact: required("公开联系渠道", 200),
+  allowExternal: z.coerce.boolean().default(false),
+  publicDisplay: z.coerce.boolean().default(true),
+  recruitmentDeadline: z.iso.date(),
+  maxSize: z.coerce.number().int().min(1).max(4),
+  memberNumbers: stringList,
+});
+
+export const applicationSchema = z.object({
+  message: z.string().trim().max(200).default(""),
+});
+
+export const confirmationSchema = z.object({
+  allConfirmed: z.literal("on", "请确认全员已确认"),
+});
+
+const optionalUrl = z
+  .union([z.literal(""), z.string().url("请输入有效链接")])
+  .default("");
+export const submissionSchema = z.object({
+  projectName: required("作品名称", 100),
+  track: required("所属赛道", 80),
+  oneLiner: required("一句话介绍", 350),
+  background: required("项目背景", 350),
+  problemSolved: required("解决的问题", 350),
+  coreFeatures: required("核心功能", 350),
+  techApproach: required("技术方案", 350),
+  innovation: required("创新点", 350),
+  applicationValue: required("应用价值", 350),
+  usageGuide: required("使用说明", 350),
+  githubUrl: optionalUrl,
+  demoUrl: optionalUrl,
+  demoVideo: optionalUrl,
+  datasetUrl: optionalUrl,
+  pptUrl: optionalUrl,
+  docsUrl: optionalUrl,
+  packageUrl: optionalUrl,
+  coverUrl: optionalUrl,
+  supplementaryUrl: optionalUrl,
+});
+
+export function formDataObject(formData: FormData) {
+  return Object.fromEntries(formData.entries());
+}
