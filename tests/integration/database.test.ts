@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, pool } from "../../src/db/client";
 import {
+  addAdminUser,
   changeTeamLeader,
   closeMyTeam,
   respondToMembership,
@@ -309,6 +310,44 @@ describe("PostgreSQL business constraints", () => {
         }),
       ]),
     );
+  });
+  it("creates or promotes persistent administrator users by email", async () => {
+    await db.insert(users).values({
+      email: "existing-admin@example.com",
+      role: "participant",
+    });
+
+    const [promoted, created] = await Promise.all([
+      addAdminUser(
+        { ok: false, message: "" },
+        actionForm({ email: "existing-admin@example.com" }),
+      ),
+      addAdminUser(
+        { ok: false, message: "" },
+        actionForm({ email: "new-admin@example.com" }),
+      ),
+    ]);
+    const [existingAdmin, newAdmin] = await Promise.all([
+      db
+        .select()
+        .from(users)
+        .where(eq(users.email, "existing-admin@example.com"))
+        .then(([row]) => row),
+      db
+        .select()
+        .from(users)
+        .where(eq(users.email, "new-admin@example.com"))
+        .then(([row]) => row),
+    ]);
+
+    expect(promoted).toMatchObject({ ok: true });
+    expect(created).toMatchObject({ ok: true });
+    expect(existingAdmin.role).toBe("admin");
+    expect(newAdmin).toMatchObject({
+      email: "new-admin@example.com",
+      role: "admin",
+      emailVerified: null,
+    });
   });
   it("keeps private or unaudited member identities out of public team queries", async () => {
     const leader = await makeParticipant("L", {

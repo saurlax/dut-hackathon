@@ -13,6 +13,7 @@ import {
   teamConfirmations,
   teamMembers,
   teams,
+  users,
 } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/authz";
 import type { ActionState } from "@/lib/domain";
@@ -20,6 +21,7 @@ import { isRecruitmentOpen } from "@/lib/domain";
 import {
   applicationSchema,
   confirmationSchema,
+  emailLoginSchema,
   formDataObject,
   participantSchema,
   submissionSchema,
@@ -949,6 +951,29 @@ export async function saveSubmission(
   revalidatePath("/submission");
   revalidatePath("/showcase");
   return { ok: true, message: "作品资料已保存" };
+}
+
+export async function addAdminUser(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = emailLoginSchema.safeParse(formDataObject(formData));
+  if (!parsed.success) return invalid(parsed.error);
+  const email = parsed.data.email.toLowerCase();
+  try {
+    await db
+      .insert(users)
+      .values({ email, role: "admin" })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: { role: "admin", updatedAt: new Date() },
+      });
+  } catch (error) {
+    return mutationFailure(error, "新增管理员失败，请稍后重试");
+  }
+  revalidatePath("/admin");
+  return { ok: true, message: `已将 ${email} 设置为管理员` };
 }
 
 export async function updateAudit(

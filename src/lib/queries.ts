@@ -391,6 +391,7 @@ export async function adminOverview() {
     confirmationRows,
     submissionRows,
     teamMemberRows,
+    adminRows,
   ] = await Promise.all([
     db.select().from(teams).orderBy(desc(teams.createdAt)),
     db.select().from(participants).orderBy(desc(participants.createdAt)),
@@ -414,6 +415,18 @@ export async function adminOverview() {
       .from(teamMembers)
       .innerJoin(participants, eq(teamMembers.participantId, participants.id))
       .orderBy(asc(teamMembers.teamId), asc(teamMembers.position)),
+    db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(eq(users.role, "admin"))
+      .orderBy(desc(users.updatedAt)),
   ]);
   const membersByTeam = new Map<string, (typeof teamMemberRows)[number][]>();
   for (const member of teamMemberRows) {
@@ -433,6 +446,7 @@ export async function adminOverview() {
     })),
     confirmations: confirmationRows,
     submissions: submissionRows,
+    admins: adminRows,
   };
 }
 

@@ -43,12 +43,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   events: {
     async signIn({ user }) {
       if (!user.id || !user.email) return;
-      const role = adminEmails(env.ADMIN_EMAILS).has(user.email.toLowerCase())
-        ? "admin"
-        : "participant";
+      if (!adminEmails(env.ADMIN_EMAILS).has(user.email.toLowerCase())) return;
       await db
         .update(users)
-        .set({ role, updatedAt: new Date() })
+        .set({ role: "admin", updatedAt: new Date() })
         .where(eq(users.id, user.id));
     },
   },
