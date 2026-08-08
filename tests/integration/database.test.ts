@@ -10,6 +10,7 @@ import {
   respondToMembership,
   reviewTeamApplication,
   saveRegistration,
+  saveSubmission,
   saveTeam,
   submitConfirmation,
   updateAudit,
@@ -103,6 +104,21 @@ function actionForm(values: Record<string, string>) {
   const formData = new FormData();
   for (const [key, value] of Object.entries(values)) formData.set(key, value);
   return formData;
+}
+
+function submissionForm() {
+  return actionForm({
+    projectName: "E2E 作品",
+    track: "AI",
+    oneLiner: "一句话介绍",
+    background: "项目背景",
+    problemSolved: "解决的问题",
+    coreFeatures: "核心功能",
+    techApproach: "技术方案",
+    innovation: "创新点",
+    applicationValue: "应用价值",
+    usageGuide: "使用说明",
+  });
 }
 
 describe("PostgreSQL business constraints", () => {
@@ -897,5 +913,74 @@ describe("PostgreSQL business constraints", () => {
     expect(leaders).toHaveLength(1);
     expect(leaders[0].participantId).toBe(storedTeam.leaderParticipantId);
     expect(confirmations).toHaveLength(confirmationResult.ok ? 1 : 0);
+  });
+  it("only allows submission after the final confirmation is approved", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    authUser.id = leader.userId;
+
+    // No confirmation yet -> blocked.
+    const beforeConfirmation = await saveSubmission(
+      { ok: false, message: "" },
+      submissionForm(),
+    );
+    expect(beforeConfirmation.ok).toBe(false);
+    expect(beforeConfirmation.message).toContain("最终组队确认");
+
+    // Confirmation submitted but pending -> blocked.
+    await submitConfirmation(
+      { ok: false, message: "" },
+      actionForm({ allConfirmed: "on" }),
+    );
+    const whilePending = await saveSubmission(
+      { ok: false, message: "" },
+      submissionForm(),
+    );
+    expect(whilePending.ok).toBe(false);
+    expect(whilePending.message).toContain("审核中");
+
+    // Admin rejects the confirmation -> still blocked, with the rejection hint.
+    const [confirmation] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.teamId, team.id));
+    await updateAudit(
+      "confirmation",
+      confirmation.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "rejected", reason: "成员信息有误" }),
+    );
+    const whileRejected = await saveSubmission(
+      { ok: false, message: "" },
+      submissionForm(),
+    );
+    expect(whileRejected.ok).toBe(false);
+    expect(whileRejected.message).toContain("被驳回");
+
+    // Admin approves -> submission allowed and stored as pending review.
+    await updateAudit(
+      "confirmation",
+      confirmation.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "approved" }),
+    );
+    const approved = await saveSubmission(
+      { ok: false, message: "" },
+      submissionForm(),
+    );
+    expect(approved.ok).toBe(true);
+    const [stored] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, team.id));
+    expect(stored).toMatchObject({
+      projectName: "E2E 作品",
+      auditStatus: "pending",
+      publicDisplay: false,
+    });
   });
 });
