@@ -1,11 +1,13 @@
 "use client";
 
-import { ExternalLink, Maximize2 } from "lucide-react";
+import { ExternalLink, Maximize2, XIcon } from "lucide-react";
 import { displayNumber, isSafeHttpUrl } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -190,8 +192,22 @@ export function PublicParticipantCard({
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-3xl rounded-none p-0">
-        <DialogHeader className="border-b border-foreground/15 bg-white px-6 py-5 sm:px-7">
+      <DialogContent
+        className="max-w-3xl rounded-none p-0"
+        showCloseButton={false}
+      >
+        <DialogHeader className="relative border-b border-foreground/15 bg-white px-6 py-5 sm:px-7">
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-4 right-4 sm:right-5"
+            >
+              <XIcon />
+              <span className="sr-only">关闭</span>
+            </Button>
+          </DialogClose>
           <div className="flex flex-wrap items-center gap-2 pr-8">
             <DialogTitle className="text-2xl">{participant.name}</DialogTitle>
             <Badge variant="outline">

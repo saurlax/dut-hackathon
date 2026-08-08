@@ -55,7 +55,13 @@ describe("PublicParticipantCard", () => {
       profile.getByText(/不包含手机号、联系邮箱和学号/),
     ).toBeInTheDocument();
 
-    await user.click(profile.getByRole("button", { name: "关闭" }));
+    const closeButton = profile.getByRole("button", { name: "关闭" });
+    expect(
+      closeButton.closest('[data-slot="dialog-header"]'),
+    ).toBeInTheDocument();
+    expect(closeButton).toHaveClass("absolute", "top-4", "right-4");
+
+    await user.click(closeButton);
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
