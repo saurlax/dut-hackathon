@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 import { adminEmails, getServerEnv } from "@/lib/env";
 import { createLoginEmail } from "@/lib/login-email";
+import { authorizeAdminPath } from "@/lib/proxy-authz";
 
 const env = getServerEnv();
 
@@ -68,6 +69,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
+    authorized({ request, auth }) {
+      return authorizeAdminPath({
+        pathname: request.nextUrl.pathname,
+        hasSession: Boolean(auth?.user),
+      });
+    },
     redirect({ url, baseUrl }) {
       const appOrigin = env.AUTH_URL ? new URL(env.AUTH_URL).origin : baseUrl;
       if (url.startsWith("/")) return `${appOrigin}${url}`;
