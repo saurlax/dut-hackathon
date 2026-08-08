@@ -13,7 +13,7 @@ export default async function ShowcasePage({
   const { q = "" } = await searchParams;
   const items = await showcase(q);
   return (
-    <>
+    <div className="paper-grain">
       <PageHeading
         eyebrow="SHOWCASE"
         title="黑客松作品展示"
@@ -64,6 +64,6 @@ export default async function ShowcasePage({
           description="作品审核通过后将在这里展示。"
         />
       )}
-    </>
+    </div>
   );
 }

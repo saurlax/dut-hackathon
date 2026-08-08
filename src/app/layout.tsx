@@ -1,7 +1,43 @@
 import type { Metadata } from "next";
+import {
+  Barlow,
+  Barlow_Condensed,
+  JetBrains_Mono,
+  Noto_Sans_SC,
+} from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
+
+const barlow = Barlow({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-barlow",
+  display: "swap",
+});
+
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["700", "800", "900"],
+  style: ["normal", "italic"],
+  variable: "--font-barlow-condensed",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
+
+const notoSansSC = Noto_Sans_SC({
+  subsets: ["latin"],
+  weight: ["400", "500", "700", "900"],
+  variable: "--font-noto-sc",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "大工黑客松组队中心", template: "%s · 大工黑客松" },
@@ -12,7 +48,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
+    <html
+      lang="zh-CN"
+      className={`${barlow.variable} ${barlowCondensed.variable} ${jetbrainsMono.variable} ${notoSansSC.variable}`}
+    >
       <body>
         <div className="relative flex min-h-screen flex-col">
           <div className="grain-overlay" aria-hidden="true" />

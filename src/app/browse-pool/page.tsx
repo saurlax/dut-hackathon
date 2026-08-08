@@ -3,8 +3,7 @@ import { displayNumber } from "@/lib/domain";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
 export default async function PoolPage({
   searchParams,
@@ -21,55 +20,111 @@ export default async function PoolPage({
         description="公开资料均由参赛者授权展示；联系时请尊重对方隐私。"
       />
       <SearchBar defaultValue={q} placeholder="搜索姓名或个人简介" />
-      {items.length ? (
-        <>
-          <div className="mb-4 flex items-center justify-between">
-            <span className="eyebrow">RESULTS</span>
-            <span className="nums text-xs text-muted-foreground">
+      {/* ── Section banner (always shown, even at 0 people) ───────── */}
+      <header className="mb-6 border-b border-foreground pb-3">
+        <div className="flex items-center gap-3">
+          <span className="label-mono text-[11px] text-muted-foreground">
+            {"// POOL"}
+          </span>
+          <span className="h-px flex-1 bg-foreground/20" />
+          <span className="inline-flex items-center gap-1.5 border border-foreground/30 bg-foreground/5 px-2 py-0.5">
+            <span className="h-1.5 w-1.5 bg-foreground" />
+            <span className="label-mono text-[10px] text-foreground">
               {String(items.length).padStart(2, "0")} PEOPLE
             </span>
-          </div>
-          <div className="grid gap-px overflow-hidden rounded-xl border border-primary/15 bg-primary/15 shadow-sm md:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
+          </span>
+        </div>
+      </header>
+      {items.length ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => {
+            const stack = item.techStack;
+            const profile = [item.school, item.college, item.grade].filter(
+              Boolean,
+            );
+            return (
               <Card
                 key={item.id}
-                className="rounded-none border-0 bg-white/90 shadow-none hover:bg-secondary/45"
+                className="flex flex-col rounded-none border-foreground/15 bg-white p-5 shadow-none transition-all duration-150 hover:border-foreground hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard"
               >
-                <CardHeader>
-                  <Badge variant="outline" className="nums w-fit">
-                    {displayNumber("P", item.participantNumber)}
-                  </Badge>
-                  <CardTitle className="mt-2 font-display text-xl font-bold">
-                    {item.name}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {item.school} · {item.college} · {item.grade}
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <p className="line-clamp-3 min-h-14 text-sm">
-                    {item.bio || "这位参赛者暂未填写简介。"}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-1">
-                    {[...item.desiredRoles, ...item.techStack]
-                      .slice(0, 5)
-                      .map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
+                {/* name + participant number */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-display text-lg font-bold tracking-tight text-foreground">
+                      {item.name}
+                    </h3>
+                    <p className="mt-0.5 label-mono nums text-[10px] text-muted-foreground">
+                      {displayNumber("P", item.participantNumber)}
+                    </p>
                   </div>
-                  <p className="mt-5 rounded-lg border border-primary/15 bg-secondary/70 p-3 text-sm">
-                    <span className="label-mono mr-1 text-[10px] text-primary">
-                      CONTACT
-                    </span>
-                    {item.publicContact}
+                </div>
+
+                {profile.length > 0 && (
+                  <p className="mt-1 label-mono text-[10px] text-muted-foreground">
+                    {profile.join(" · ")}
                   </p>
-                </CardContent>
+                )}
+
+                {/* desired roles — solid reverse chips */}
+                {item.desiredRoles.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {item.desiredRoles.map((role) => (
+                      <span
+                        key={role}
+                        className="label-mono bg-foreground px-1.5 py-0.5 text-[10px] text-background"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* stack — neutral mono, slash-separated */}
+                {stack.length > 0 && (
+                  <div className="mt-2.5 font-mono text-[10px] text-muted-foreground">
+                    <span className="label-mono mr-1.5 text-foreground/40">
+                      STACK
+                    </span>
+                    {stack.slice(0, 4).map((tech, i) => (
+                      <span key={tech}>
+                        {i > 0 && (
+                          <span className="mx-1 text-foreground/20">/</span>
+                        )}
+                        {tech}
+                      </span>
+                    ))}
+                    {stack.length > 4 && (
+                      <span className="ml-1 text-foreground/40">
+                        +{stack.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* bio */}
+                <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm leading-relaxed text-muted-foreground">
+                  {item.bio ? (
+                    item.bio
+                  ) : (
+                    <span className="italic text-foreground/35">
+                      这位参赛者暂未填写简介
+                    </span>
+                  )}
+                </p>
+
+                {/* public contact, pinned to the card bottom */}
+                {item.publicContact && (
+                  <div className="mt-auto border-t border-foreground/15 pt-3 font-mono text-[11px] text-muted-foreground">
+                    <span className="label-mono mr-1.5 text-[10px] text-foreground/40">
+                      公开联系方式
+                    </span>
+                    <span className="break-all">{item.publicContact}</span>
+                  </div>
+                )}
               </Card>
-            ))}
-          </div>
-        </>
+            );
+          })}
+        </div>
       ) : (
         <EmptyState
           title="暂无公开资料"
