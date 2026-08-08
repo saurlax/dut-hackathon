@@ -1105,7 +1105,8 @@ export async function removeAdmin(
         ok: false,
         message: "无法移除最后一名管理员，请先指定新的管理员",
       };
-    if (outcome === "missing") return { ok: false, message: "该邮箱不是管理员" };
+    if (outcome === "missing")
+      return { ok: false, message: "该邮箱不是管理员" };
   } catch (error) {
     return mutationFailure(error, "移除管理员失败，请稍后重试");
   }

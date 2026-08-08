@@ -18,8 +18,7 @@ export function RemoveAdminButton({
   );
   const [confirming, setConfirming] = useState(false);
 
-  if (disabled)
-    return <span className="text-xs text-muted-foreground">—</span>;
+  if (disabled) return <span className="text-xs text-muted-foreground">—</span>;
 
   if (!confirming)
     return (
@@ -37,7 +36,12 @@ export function RemoveAdminButton({
     <div className="flex flex-wrap items-center gap-2">
       <form action={action}>
         <input type="hidden" name="email" value={email} />
-        <Button type="submit" variant="destructive" size="sm" disabled={pending}>
+        <Button
+          type="submit"
+          variant="destructive"
+          size="sm"
+          disabled={pending}
+        >
           {pending ? "移除中…" : "确认移除"}
         </Button>
       </form>

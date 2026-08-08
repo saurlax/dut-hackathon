@@ -999,10 +999,7 @@ describe("PostgreSQL business constraints", () => {
     authUser.id = leader.userId;
 
     await closeMyTeam({ ok: false, message: "" }, new FormData());
-    const [paused] = await db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, team.id));
+    const [paused] = await db.select().from(teams).where(eq(teams.id, team.id));
     expect(paused.recruitStatus).toBe("paused");
 
     // Editing details (here: the description) must not flip a paused team back
@@ -1019,10 +1016,7 @@ describe("PostgreSQL business constraints", () => {
       }),
     );
     expect(edited.ok).toBe(true);
-    const [after] = await db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, team.id));
+    const [after] = await db.select().from(teams).where(eq(teams.id, team.id));
     expect(after.recruitStatus).toBe("paused");
     expect(after.description).toBe("edited description");
     expect(after.publicDisplay).toBe(true);
@@ -1076,7 +1070,11 @@ describe("PostgreSQL business constraints", () => {
     try {
       await db.insert(users).values([
         { email: "seed@example.com", role: "admin", emailVerified: new Date() },
-        { email: "other@example.com", role: "admin", emailVerified: new Date() },
+        {
+          email: "other@example.com",
+          role: "admin",
+          emailVerified: new Date(),
+        },
       ]);
       const seedRemoval = await removeAdmin(
         { ok: false, message: "" },
@@ -1167,7 +1165,13 @@ describe("PostgreSQL business constraints", () => {
         publicConsentAt: new Date(),
       });
       expect(
-        (await applyToTeam(team.id, { ok: false, message: "" }, actionForm({ message: `apply ${i}` }))).ok,
+        (
+          await applyToTeam(
+            team.id,
+            { ok: false, message: "" },
+            actionForm({ message: `apply ${i}` }),
+          )
+        ).ok,
       ).toBe(true);
     }
     const fourthTeam = await makeTeam(leaders[3].id, 4, {
@@ -1184,7 +1188,10 @@ describe("PostgreSQL business constraints", () => {
     expect(blocked.message).toContain("最多 3 支");
   });
   it("rejects applications to internal-only teams from external participants", async () => {
-    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const leader = await makeParticipant("L", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team = await makeTeam(leader.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
@@ -1201,14 +1208,20 @@ describe("PostgreSQL business constraints", () => {
     expect(result.message).toContain("校内成员");
   });
   it("rejects applications to a team whose recruitment deadline has passed", async () => {
-    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const leader = await makeParticipant("L", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team = await makeTeam(leader.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
       publicConsentAt: new Date(),
       recruitmentDeadline: "2020-01-01",
     });
-    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    const applicant = await makeParticipant("A", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     authUser.id = applicant.userId;
     const result = await applyToTeam(
       team.id,
@@ -1219,16 +1232,28 @@ describe("PostgreSQL business constraints", () => {
     expect(result.message).toContain("不可申请");
   });
   it("rejects a duplicate pending application to the same team", async () => {
-    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const leader = await makeParticipant("L", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team = await makeTeam(leader.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
       publicConsentAt: new Date(),
     });
-    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    const applicant = await makeParticipant("A", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     authUser.id = applicant.userId;
     expect(
-      (await applyToTeam(team.id, { ok: false, message: "" }, actionForm({ message: "first" }))).ok,
+      (
+        await applyToTeam(
+          team.id,
+          { ok: false, message: "" },
+          actionForm({ message: "first" }),
+        )
+      ).ok,
     ).toBe(true);
     const dup = await applyToTeam(
       team.id,
@@ -1239,13 +1264,19 @@ describe("PostgreSQL business constraints", () => {
     expect(dup.message).toContain("申请过");
   });
   it("rejects applications before the participant audit is approved", async () => {
-    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const leader = await makeParticipant("L", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team = await makeTeam(leader.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
       publicConsentAt: new Date(),
     });
-    const applicant = await makeParticipant("A", { auditStatus: "pending", isInternal: true });
+    const applicant = await makeParticipant("A", {
+      auditStatus: "pending",
+      isInternal: true,
+    });
     authUser.id = applicant.userId;
     const result = await applyToTeam(
       team.id,
@@ -1256,9 +1287,18 @@ describe("PostgreSQL business constraints", () => {
     expect(result.message).toContain("审核通过");
   });
   it("rejects applications from a participant already in another team", async () => {
-    const leader1 = await makeParticipant("L1", { auditStatus: "approved", isInternal: true });
-    const leader2 = await makeParticipant("L2", { auditStatus: "approved", isInternal: true });
-    const member = await makeParticipant("M", { auditStatus: "approved", isInternal: true });
+    const leader1 = await makeParticipant("L1", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
+    const leader2 = await makeParticipant("L2", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
+    const member = await makeParticipant("M", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team1 = await makeTeam(leader1.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
@@ -1359,9 +1399,18 @@ describe("PostgreSQL business constraints", () => {
     expect(alreadyLeader.message).toContain("已经是队长");
   });
   it("lets the first team's approval win and blocks the second", async () => {
-    const leader1 = await makeParticipant("L1", { auditStatus: "approved", isInternal: true });
-    const leader2 = await makeParticipant("L2", { auditStatus: "approved", isInternal: true });
-    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    const leader1 = await makeParticipant("L1", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
+    const leader2 = await makeParticipant("L2", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
+    const applicant = await makeParticipant("A", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team1 = await makeTeam(leader1.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
@@ -1382,7 +1431,13 @@ describe("PostgreSQL business constraints", () => {
 
     authUser.id = leader1.userId;
     expect(
-      (await reviewTeamApplication(app1.id, { ok: false, message: "" }, actionForm({ decision: "approve" }))).ok,
+      (
+        await reviewTeamApplication(
+          app1.id,
+          { ok: false, message: "" },
+          actionForm({ decision: "approve" }),
+        )
+      ).ok,
     ).toBe(true);
 
     // Approving the applicant into team1 auto-withdraws their other pending
@@ -1430,7 +1485,10 @@ describe("PostgreSQL business constraints", () => {
       .select()
       .from(teams)
       .where(eq(teams.id, team.id));
-    expect(storedTeam).toMatchObject({ auditStatus: "rejected", exception: "方向不明" });
+    expect(storedTeam).toMatchObject({
+      auditStatus: "rejected",
+      exception: "方向不明",
+    });
     await updateAudit(
       "team",
       team.id,
@@ -1488,7 +1546,10 @@ describe("PostgreSQL business constraints", () => {
       .select()
       .from(submissions)
       .where(eq(submissions.id, sub.id));
-    expect(storedSub).toMatchObject({ auditStatus: "rejected", adminNote: "材料不全" });
+    expect(storedSub).toMatchObject({
+      auditStatus: "rejected",
+      adminNote: "材料不全",
+    });
   });
   it("resets registration audit when the participant edits their profile", async () => {
     const participant = await makeParticipant("P", {
@@ -1517,16 +1578,29 @@ describe("PostgreSQL business constraints", () => {
     expect(stored).toMatchObject({ auditStatus: "pending", adminNote: "" });
   });
   it("only lets a participant withdraw their own pending application", async () => {
-    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const leader = await makeParticipant("L", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     const team = await makeTeam(leader.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,
       publicConsentAt: new Date(),
     });
-    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
-    const other = await makeParticipant("O", { auditStatus: "approved", isInternal: true });
+    const applicant = await makeParticipant("A", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
+    const other = await makeParticipant("O", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
     authUser.id = applicant.userId;
-    await applyToTeam(team.id, { ok: false, message: "" }, actionForm({ message: "hi" }));
+    await applyToTeam(
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ message: "hi" }),
+    );
     const [application] = await db
       .select()
       .from(teamApplications)
@@ -1553,10 +1627,13 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(teamApplications.id, application.id));
     expect(withdrawn.status).toBe("withdrawn");
     const ctx = await teamApplicationContext(applicant.userId, team.id);
-    expect(ctx.activeApplicationCount).toBe(0);
+    expect(ctx?.activeApplicationCount).toBe(0);
   });
   it("filters public teams and participants by keyword", async () => {
-    const leader = await makeParticipant("L", { auditStatus: "approved", publicDisplay: true });
+    const leader = await makeParticipant("L", {
+      auditStatus: "approved",
+      publicDisplay: true,
+    });
     await makeTeam(leader.id, 4, {
       auditStatus: "approved",
       publicDisplay: true,

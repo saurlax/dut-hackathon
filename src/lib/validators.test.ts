@@ -115,4 +115,43 @@ describe("business validation", () => {
     };
     expect(submissionSchema.safeParse(base).success).toBe(false);
   });
+  it("accepts a team of one and rejects zero, negative, and fractional sizes", () => {
+    const base = {
+      name: "T",
+      description: "D",
+      contact: "C",
+      recruitmentDeadline: "2099-09-01",
+    };
+    expect(teamSchema.safeParse({ ...base, maxSize: 1 }).success).toBe(true);
+    expect(teamSchema.safeParse({ ...base, maxSize: 0 }).success).toBe(false);
+    expect(teamSchema.safeParse({ ...base, maxSize: -1 }).success).toBe(false);
+    expect(teamSchema.safeParse({ ...base, maxSize: 2.5 }).success).toBe(false);
+    expect(teamSchema.safeParse({ ...base, maxSize: "abc" }).success).toBe(
+      false,
+    );
+  });
+  it("rejects whitespace-only and oversized team names", () => {
+    const base = {
+      name: "T",
+      description: "D",
+      contact: "C",
+      recruitmentDeadline: "2099-09-01",
+      maxSize: 4,
+    };
+    expect(teamSchema.safeParse({ ...base, name: "   " }).success).toBe(false);
+    expect(
+      teamSchema.safeParse({ ...base, name: "x".repeat(81) }).success,
+    ).toBe(false);
+  });
+  it("requires participant phone and a valid email", () => {
+    expect(
+      participantSchema.safeParse({ ...participantInput, phone: "  " }).success,
+    ).toBe(false);
+    expect(
+      participantSchema.safeParse({
+        ...participantInput,
+        email: "not-an-email",
+      }).success,
+    ).toBe(false);
+  });
 });

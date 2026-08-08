@@ -18,6 +18,11 @@ describe("event date rules", () => {
     expect(isRecruitmentOpen("2026-08-09", now)).toBe(true);
     expect(isRecruitmentOpen("2026-08-08", now)).toBe(false);
   });
+  it("treats the deadline day as open and the day before as closed", () => {
+    const now = new Date("2026-12-31T14:00:00.000Z"); // 22:00 in CST
+    expect(isRecruitmentOpen("2026-12-31", now)).toBe(true);
+    expect(isRecruitmentOpen("2026-12-30", now)).toBe(false);
+  });
 });
 
 describe("public contact rules", () => {
@@ -77,4 +82,8 @@ describe.each(["project submission", "final confirmation"])(
 describe("display numbers", () => {
   it("creates stable padded participant numbers", () =>
     expect(displayNumber("P", 12)).toBe("P0012"));
+  it("pads single-digit numbers to four places", () => {
+    expect(displayNumber("T", 7)).toBe("T0007");
+    expect(displayNumber("S", 1)).toBe("S0001");
+  });
 });
