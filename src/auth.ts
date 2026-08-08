@@ -19,7 +19,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     verificationTokensTable: verificationTokens,
   }),
   session: { strategy: "database" },
-  trustHost: true,
+  trustHost: Boolean(env.AUTH_URL),
   pages: {
     signIn: "/login",
     verifyRequest: "/login/verify",
@@ -68,6 +68,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
+    redirect({ url, baseUrl }) {
+      const appOrigin = env.AUTH_URL ? new URL(env.AUTH_URL).origin : baseUrl;
+      if (url.startsWith("/")) return `${appOrigin}${url}`;
+      try {
+        return new URL(url).origin === appOrigin ? url : appOrigin;
+      } catch {
+        return appOrigin;
+      }
+    },
     session({ session, user }) {
       session.user.id = user.id;
       session.user.role = user.role;

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { participants, teams } from "@/db/schema";
-import { displayNumber } from "@/lib/domain";
+import { displayNumber, isSafeHttpUrl } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 
 type ParticipantDetail = typeof participants.$inferSelect & { number: string };
@@ -168,7 +168,7 @@ export function ParticipantRecordDetails({
             },
             {
               label: "GitHub 或作品集",
-              value: participant.portfolioUrl ? (
+              value: isSafeHttpUrl(participant.portfolioUrl) ? (
                 <a
                   href={participant.portfolioUrl}
                   target="_blank"

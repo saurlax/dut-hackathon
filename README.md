@@ -50,17 +50,17 @@ Copy-Item .env.example .env.local
 
 ## 环境变量
 
-| 变量                    | 说明                                             |
-| ----------------------- | ------------------------------------------------ |
-| `DATABASE_URL`          | PostgreSQL 连接字符串                            |
-| `AUTH_SECRET`           | Auth.js 密钥，至少 32 个字符                     |
-| `AUTH_URL`              | 应用公开地址，本地默认为 `http://localhost:3000` |
-| `EMAIL_SERVER_HOST`     | SMTP 主机地址                                    |
-| `EMAIL_SERVER_PORT`     | SMTP 端口                                        |
-| `EMAIL_SERVER_USER`     | SMTP 用户名                                      |
-| `EMAIL_SERVER_PASSWORD` | SMTP 密码                                        |
-| `EMAIL_FROM`            | 登录邮件发件人                                   |
-| `ADMIN_EMAILS`          | 逗号分隔的初始管理员邮箱列表                     |
+| 变量                    | 说明                                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | PostgreSQL 连接字符串                                                                                     |
+| `AUTH_SECRET`           | Auth.js 密钥，至少 32 个字符                                                                              |
+| `AUTH_URL`              | 应用公开地址，本地默认为 `http://localhost:3000`；未配置时登录会拒绝信任 Host，避免魔法链接被 Host 头污染 |
+| `EMAIL_SERVER_HOST`     | SMTP 主机地址                                                                                             |
+| `EMAIL_SERVER_PORT`     | SMTP 端口                                                                                                 |
+| `EMAIL_SERVER_USER`     | SMTP 用户名                                                                                               |
+| `EMAIL_SERVER_PASSWORD` | SMTP 密码                                                                                                 |
+| `EMAIL_FROM`            | 登录邮件发件人                                                                                            |
+| `ADMIN_EMAILS`          | 逗号分隔的初始管理员邮箱列表                                                                              |
 
 生产环境必须使用随机生成的 `AUTH_SECRET` 和真实 SMTP 凭据。用户完成邮箱验证后即可创建账户；`ADMIN_EMAILS` 中的账户会在登录时提升为管理员。已有管理员还可以在管理后台按邮箱新增管理员，数据库中已授予的管理员角色不会因邮箱不在 `ADMIN_EMAILS` 中而被降级。
 
@@ -91,13 +91,14 @@ npm run test:integration
 npm run test:e2e
 ```
 
-集成测试需要已完成 migration 的测试数据库，可通过 `TEST_DATABASE_URL` 指定。完整邮箱登录 E2E 需要设置 `E2E_MAILPIT_URL`；未设置时会跳过依赖 Mailpit 的用例。
+集成测试需要已完成 migration 的测试数据库，可通过 `TEST_DATABASE_URL` 指定。完整邮箱登录 E2E 需要设置 `E2E_MAILPIT_URL`；未设置时会跳过依赖 Mailpit 的用例。E2E 默认使用 `127.0.0.1:3000`，可通过 `E2E_PORT` 或 `E2E_BASE_URL` 覆盖，便于在已有开发服务器占用端口时并行运行。
 
 ## 业务规则
 
 - 公共页面只查询并展示审核通过、明确同意公开的信息；队伍与作品默认不公开。
 - 组队大厅只展示仍在截止日期内且状态为招募中的队伍；暂停招募会保留待处理申请，队长可以直接恢复招募，最终确认后才进入完成状态。
 - 每位用户只能提交一份报名资料，每位参赛者只能加入一支队伍。
+- 登录邮件增加频率限制：同一邮箱存在 5 个未过期验证令牌时，会提示稍后再试，防止批量发送登录邮件。
 - 报名中的联系邮箱可以与魔法链接登录邮箱不同；个人组队池会排除已入队或明确不再组队的参赛者。
 - 每支队伍最多四人，每位参赛者最多同时保留三个待处理入队申请。
 - 报名资料修改后会重新进入审核；只有审核通过的参赛者可以申请队伍。

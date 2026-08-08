@@ -3,7 +3,9 @@ import {
   displayNumber,
   eventDate,
   hasPublicContact,
+  isSafeHttpUrl,
   isRecruitmentOpen,
+  normalizeLoginEmail,
   normalizeParticipantNumber,
   resolveGatedPageState,
 } from "./domain";
@@ -29,6 +31,18 @@ describe("public contact rules", () => {
     expect(hasPublicContact([null, "email@example.com"])).toBe(true));
 });
 
+describe("safe URL rules", () => {
+  it("accepts only http and https links", () => {
+    expect(isSafeHttpUrl("https://example.com")).toBe(true);
+    expect(isSafeHttpUrl("http://example.com/path?q=1")).toBe(true);
+    expect(isSafeHttpUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeHttpUrl("data:text/html,<script>alert(1)</script>")).toBe(
+      false,
+    );
+    expect(isSafeHttpUrl("")).toBe(false);
+  });
+});
+
 describe("participant number normalization", () => {
   it("matches numbers with different zero padding", () =>
     expect(normalizeParticipantNumber("P0007")).toBe("7"));
@@ -38,6 +52,22 @@ describe("participant number normalization", () => {
     ));
   it("preserves non-standard values after trimming and casing", () =>
     expect(normalizeParticipantNumber(" ab-1 ")).toBe("AB-1"));
+});
+
+describe("login email normalization", () => {
+  it("matches Auth.js normalization for rate limiting", () => {
+    expect(normalizeLoginEmail("  USER＠Example.COM ")).toBe(
+      "user@example.com",
+    );
+    expect(normalizeLoginEmail("user@example.com,extra")).toBe(
+      "user@example.com",
+    );
+  });
+  it("rejects quoted and malformed addresses", () => {
+    expect(normalizeLoginEmail('"user"@example.com')).toBeNull();
+    expect(normalizeLoginEmail("user@example@com")).toBeNull();
+    expect(normalizeLoginEmail("")).toBeNull();
+  });
 });
 
 describe.each(["project submission", "final confirmation"])(

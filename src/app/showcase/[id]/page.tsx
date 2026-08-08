@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { publicSubmissionDetail } from "@/lib/queries";
+import { isSafeHttpUrl } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 export default async function ShowcaseDetail({
@@ -58,7 +59,7 @@ export default async function ShowcaseDetail({
       </div>
       <div className="mt-10 flex flex-wrap gap-2">
         {Object.entries(s.links)
-          .filter(([, url]) => url)
+          .filter(([, url]) => isSafeHttpUrl(url))
           .map(([label, url]) => (
             <Button key={label} variant="outline" asChild>
               <a href={url} target="_blank" rel="noreferrer">

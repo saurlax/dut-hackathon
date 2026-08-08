@@ -115,4 +115,31 @@ describe("business validation", () => {
     };
     expect(submissionSchema.safeParse(base).success).toBe(false);
   });
+  it("rejects executable submission link schemes", () => {
+    const base = {
+      ...submissionInput,
+      githubUrl: "https://example.com",
+    };
+    expect(submissionSchema.safeParse(base).success).toBe(true);
+    expect(
+      submissionSchema.safeParse({
+        ...base,
+        githubUrl: "javascript:alert(1)",
+      }).success,
+    ).toBe(false);
+    expect(
+      submissionSchema.safeParse({
+        ...base,
+        githubUrl: "data:text/html,<script>alert(1)</script>",
+      }).success,
+    ).toBe(false);
+  });
+  it("rejects unsafe portfolio URLs", () => {
+    expect(
+      participantSchema.safeParse({
+        ...participantInput,
+        portfolioUrl: "javascript:alert(1)",
+      }).success,
+    ).toBe(false);
+  });
 });

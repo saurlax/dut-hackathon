@@ -9,6 +9,7 @@ import {
   resumeMyTeam,
   respondToMembership,
   reviewTeamApplication,
+  requestMagicLink,
   saveRegistration,
   saveTeam,
   submitConfirmation,
@@ -32,6 +33,7 @@ import {
   teamMembers,
   teams,
   users,
+  verificationTokens,
 } from "../../src/db/schema";
 
 const authUser = vi.hoisted(() => ({ id: "", email: "test@example.com" }));
@@ -109,6 +111,7 @@ describe("PostgreSQL business constraints", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     authUser.id = "";
+    await db.delete(verificationTokens);
     await db.delete(teamApplications);
     await db.delete(teamMembers);
     await db.delete(teams);
@@ -118,6 +121,25 @@ describe("PostgreSQL business constraints", () => {
   afterAll(async () => {
     await pool.end();
   });
+  it("rate limits magic link requests with unexpired tokens", async () => {
+    const email = "rate-limit@example.com";
+    await db.insert(verificationTokens).values(
+      Array.from({ length: 5 }, (_, index) => ({
+        identifier: email,
+        token: `rate-${index}`,
+        expires: new Date(Date.now() + 60_000),
+      })),
+    );
+
+    const result = await requestMagicLink(
+      { ok: false, message: "" },
+      actionForm({ email: "rate-limit\uFF20example.com", callbackUrl: "/" }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain("频繁");
+  });
+
   it("allows only one participant profile per user", async () => {
     const p = await makeParticipant();
     await expect(
