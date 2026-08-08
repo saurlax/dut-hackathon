@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import {
+  announcements,
   confirmationMembers,
   participants,
   submissions,
@@ -18,6 +19,11 @@ import {
   users,
   verificationTokens,
 } from "@/db/schema";
+import {
+  announcementContentVersion,
+  CURRENT_ANNOUNCEMENT_ID,
+  normalizeAnnouncementContent,
+} from "@/lib/announcement";
 import { requireAdmin, requireUser } from "@/lib/authz";
 import { resolveEmailRateLimitIp } from "@/lib/client-ip";
 import { adminEmails, getServerEnv } from "@/lib/env";
@@ -28,6 +34,7 @@ import {
   isEmailRateLimitError,
 } from "@/lib/email-rate-limit";
 import {
+  announcementSchema,
   applicationSchema,
   auditDecisionSchema,
   confirmationSchema,
@@ -1136,6 +1143,65 @@ export async function addAdminUser(
   }
   revalidatePath("/admin");
   return { ok: true, message: `已将 ${email} 设置为管理员` };
+}
+
+export async function saveAnnouncement(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = announcementSchema.safeParse(formDataObject(formData));
+  if (!parsed.success) return invalid(parsed.error);
+
+  const normalized = normalizeAnnouncementContent(parsed.data);
+  const contentVersion = announcementContentVersion(normalized);
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(announcements)
+      .where(eq(announcements.id, CURRENT_ANNOUNCEMENT_ID))
+      .limit(1);
+
+    if (
+      existing?.title === normalized.title &&
+      existing.content === normalized.content &&
+      existing.enabled === parsed.data.enabled &&
+      existing.contentVersion === contentVersion
+    ) {
+      return { ok: true, message: "公告内容和状态没有变化" };
+    }
+
+    const now = new Date();
+    await db
+      .insert(announcements)
+      .values({
+        id: CURRENT_ANNOUNCEMENT_ID,
+        title: normalized.title,
+        content: normalized.content,
+        contentVersion,
+        enabled: parsed.data.enabled,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: announcements.id,
+        set: {
+          title: normalized.title,
+          content: normalized.content,
+          contentVersion,
+          enabled: parsed.data.enabled,
+          updatedAt: now,
+        },
+      });
+  } catch (error) {
+    return mutationFailure(error, "保存公告失败，请稍后重试");
+  }
+
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    message: parsed.data.enabled ? "公告已保存并启用" : "公告已保存并停用",
+  };
 }
 
 export async function removeAdmin(

@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { dismissAnnouncementIfPresent } from "./announcement-helper";
 test("home and email login are responsive", async ({ page }) => {
   await page.goto("/");
+  await dismissAnnouncementIfPresent(page);
   await expect(
     page.getByRole("heading", { name: /找到同频的人/ }),
   ).toBeVisible();
@@ -10,6 +12,7 @@ test("home and email login are responsive", async ({ page }) => {
 });
 test("public navigation exposes the migrated routes", async ({ page }) => {
   await page.goto("/");
+  await dismissAnnouncementIfPresent(page);
   const header = page.locator("header");
   await expect(header.getByRole("link", { name: "队伍大厅" })).toHaveAttribute(
     "href",

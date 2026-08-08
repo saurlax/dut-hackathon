@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { dismissAnnouncementIfPresent } from "./announcement-helper";
 
 test.skip(!process.env.E2E_MAILPIT_URL, "requires Mailpit and PostgreSQL");
 test("magic-link user completes registration and creates a team", async ({
@@ -19,6 +20,7 @@ test("magic-link user completes registration and creates a team", async ({
   // especially the mail-poll below on a cold dev server.
   test.setTimeout(90_000);
   await page.goto("/login?callbackUrl=/register");
+  await dismissAnnouncementIfPresent(page);
   await page.getByLabel("邮箱地址").fill(email);
   await page.getByRole("button", { name: "发送登录链接" }).click();
   await page.waitForURL(/login\/verify/);
@@ -47,6 +49,7 @@ test("magic-link user completes registration and creates a team", async ({
     ?.replaceAll("&amp;", "&");
   expect(link).toBeTruthy();
   await page.goto(link!);
+  await dismissAnnouncementIfPresent(page);
   await page.waitForURL(/register/);
   const values: Record<string, string> = {
     姓名: participantName,
@@ -76,6 +79,7 @@ test("magic-link user completes registration and creates a team", async ({
   await expect(page.getByRole("status")).toContainText("已保存");
 
   await page.goto(`/browse-pool?q=${encodeURIComponent(participantName)}`);
+  await dismissAnnouncementIfPresent(page);
   await page
     .getByRole("button", { name: `查看 ${participantName} 的公开资料` })
     .click();
@@ -100,6 +104,7 @@ test("magic-link user completes registration and creates a team", async ({
   await profile.getByRole("button", { name: "关闭" }).click();
 
   await page.goto("/create");
+  await dismissAnnouncementIfPresent(page);
   await page.getByLabel("队伍名称").fill("E2E Team");
   await page.getByLabel("公开联系渠道").fill(email);
   await page.getByLabel("招募截止日期").fill("2099-12-31");
@@ -119,11 +124,13 @@ test("magic-link sending is rate limited per IP for one minute", async ({
   const email = `e2e-rate-${Date.now()}@example.com`;
 
   await page.goto("/login");
+  await dismissAnnouncementIfPresent(page);
   await page.getByLabel("邮箱地址").fill(email);
   await page.getByRole("button", { name: "发送登录链接" }).click();
   await page.waitForURL(/login\/verify/);
 
   await page.goto("/login");
+  await dismissAnnouncementIfPresent(page);
   await page.getByLabel("邮箱地址").fill(email);
   await page.getByRole("button", { name: "发送登录链接" }).click();
   await expect(page.getByRole("status")).toContainText(

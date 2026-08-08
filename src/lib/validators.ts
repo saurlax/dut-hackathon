@@ -31,6 +31,12 @@ export const emailLoginSchema = z.object({
   email: z.string().trim().email("请输入有效邮箱"),
 });
 
+export const announcementSchema = z.object({
+  title: required("公告标题", 100),
+  content: required("公告正文", 10_000),
+  enabled: checkbox,
+});
+
 export const participantSchema = z.object({
   name: required("姓名", 40),
   phone: required("手机号", 30),

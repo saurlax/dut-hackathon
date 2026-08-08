@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/authz";
 import { adminEmails } from "@/lib/env";
-import { adminOverview } from "@/lib/queries";
+import { adminOverview, announcementSettings } from "@/lib/queries";
 import { displayNumber } from "@/lib/domain";
 import { AdminAuditQueue } from "@/components/admin-audit-queue";
 import { AdminAuditButtons } from "@/components/admin-audit-buttons";
@@ -12,6 +12,7 @@ import {
   TeamRecordDetails,
 } from "@/components/admin-record-details";
 import { AdminUserForm } from "@/components/admin-user-form";
+import { AdminAnnouncementForm } from "@/components/admin-announcement-form";
 import { RemoveAdminButton } from "@/components/remove-admin-button";
 import { PageHeading } from "@/components/page-heading";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,10 @@ import {
 } from "@/components/ui/table";
 export default async function AdminPage() {
   const me = await requireAdmin();
-  const data = await adminOverview();
+  const [data, announcement] = await Promise.all([
+    adminOverview(),
+    announcementSettings(),
+  ]);
   const seeds = adminEmails();
   const stat = [
     ["参赛者", data.participants.length],
@@ -61,6 +65,7 @@ export default async function AdminPage() {
           <TabsTrigger value="teams">队伍</TabsTrigger>
           <TabsTrigger value="confirmations">最终确认</TabsTrigger>
           <TabsTrigger value="submissions">作品</TabsTrigger>
+          <TabsTrigger value="announcement">公告</TabsTrigger>
           <TabsTrigger value="admins">管理员</TabsTrigger>
         </TabsList>
         <TabsContent value="participants">
@@ -187,6 +192,18 @@ export default async function AdminPage() {
                 </div>,
               ],
             }))}
+          />
+        </TabsContent>
+        <TabsContent value="announcement">
+          <AdminAnnouncementForm
+            initialValue={{
+              title: announcement?.title ?? "",
+              content: announcement?.content ?? "",
+              enabled: announcement?.enabled ?? false,
+              updatedAtLabel: announcement
+                ? `上次保存：${formatDateTime(announcement.updatedAt)}`
+                : "尚未保存公告",
+            }}
           />
         </TabsContent>
         <TabsContent value="admins">

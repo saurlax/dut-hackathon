@@ -14,6 +14,7 @@ import {
   reviewTeamApplication,
   requestMagicLink,
   saveRegistration,
+  saveAnnouncement,
   saveSubmission,
   saveTeam,
   submitConfirmation,
@@ -21,7 +22,9 @@ import {
   withdrawApplication,
 } from "../../src/app/actions";
 import {
+  activeAnnouncement,
   adminOverview,
+  announcementSettings,
   publicParticipants,
   publicSubmissionDetail,
   publicTeamDetail,
@@ -30,6 +33,7 @@ import {
   teamApplicationContext,
 } from "../../src/lib/queries";
 import {
+  announcements,
   confirmationMembers,
   emailSendLimits,
   participants,
@@ -194,6 +198,7 @@ describe("PostgreSQL business constraints", () => {
     authUser.id = "";
     await db.delete(verificationTokens);
     await db.delete(emailSendLimits);
+    await db.delete(announcements);
     await db.delete(teamApplications);
     await db.delete(teamMembers);
     await db.delete(teams);
@@ -220,6 +225,67 @@ describe("PostgreSQL business constraints", () => {
 
     expect(result).toMatchObject({ ok: false });
     expect(result.message).toContain("频繁");
+  });
+
+  it("stores one current announcement and keeps its content version stable", async () => {
+    const enabledResult = await saveAnnouncement(
+      { ok: false, message: "" },
+      actionForm({
+        title: "  重要通知  ",
+        content: " 第一行\r\n第二行 ",
+        enabled: "on",
+      }),
+    );
+    const first = await announcementSettings();
+
+    expect(enabledResult).toMatchObject({ ok: true });
+    expect(first).toMatchObject({
+      id: "current",
+      title: "重要通知",
+      content: "第一行\n第二行",
+      enabled: true,
+    });
+    expect(first?.contentVersion).toMatch(/^[a-f0-9]{64}$/);
+    expect(await activeAnnouncement()).toEqual({
+      title: "重要通知",
+      markdown: "第一行\n第二行",
+      version: first?.contentVersion,
+    });
+
+    const disabledResult = await saveAnnouncement(
+      { ok: false, message: "" },
+      actionForm({ title: "重要通知", content: "第一行\n第二行" }),
+    );
+    const disabled = await announcementSettings();
+
+    expect(disabledResult).toMatchObject({ ok: true });
+    expect(disabled?.enabled).toBe(false);
+    expect(disabled?.contentVersion).toBe(first?.contentVersion);
+    expect(await activeAnnouncement()).toBeNull();
+
+    const changedResult = await saveAnnouncement(
+      { ok: false, message: "" },
+      actionForm({
+        title: "新通知",
+        content: "第一行\n第二行",
+        enabled: "on",
+      }),
+    );
+    const changed = await announcementSettings();
+
+    expect(changedResult).toMatchObject({ ok: true });
+    expect(changed?.contentVersion).not.toBe(first?.contentVersion);
+  });
+
+  it("enforces the current announcement singleton key", async () => {
+    await expect(
+      db.insert(announcements).values({
+        id: "not-current",
+        title: "非法公告",
+        content: "正文",
+        contentVersion: "version",
+      }),
+    ).rejects.toThrow();
   });
 
   it("allows only one participant profile per user", async () => {

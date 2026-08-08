@@ -10,6 +10,7 @@
 - 入队申请、撤回、批准与拒绝
 - 参赛队伍最终确认与成员快照
 - 作品提交、公开展示和审核
+- 全站 Markdown 公告，支持后台编辑、启停、实时预览和按内容版本关闭
 - 基于角色的管理后台，支持报名/队伍资料巡查、最终确认与作品审核、详情查看、下架/驳回和管理员账户管理
 - 桌面端与移动端响应式界面
 
@@ -21,6 +22,7 @@
 - Tailwind CSS 4、shadcn/ui、Radix UI、Lucide
 - Motion、next-view-transitions（滚动/局部动画与路由 crossfade）
 - React Hook Form、Zod
+- react-markdown、remark-gfm、rehype-sanitize
 - Vitest、Testing Library、Playwright
 
 ## 本地开发
@@ -63,6 +65,7 @@ Copy-Item .env.example .env.local
 | `EMAIL_FROM`            | 登录邮件发件人                                                                                            |
 | `ADMIN_EMAILS`          | 逗号分隔的初始管理员邮箱列表                                                                              |
 | `TRUST_PROXY`           | 是否信任反向代理的客户端 IP，Zeabur 设为 `true`；取不到 IP 时跳过来源 IP 限流，不会阻止登录               |
+| `E2E_DATABASE_URL`      | 公告等会写入全局单例数据的 Playwright 用例专用隔离数据库；未配置时对应测试安全跳过                        |
 
 生产环境必须使用随机生成的 `AUTH_SECRET` 和真实 SMTP 凭据，并建议将 `TRUST_PROXY` 设为 `true`。未配置或取不到可信客户端 IP 时会跳过来源 IP 限流，但每个登录邮箱仍独立限流，不会让正常登录被误判为“发送太频繁”。用户完成邮箱验证后即可创建账户；`ADMIN_EMAILS` 中的账户会在登录时提升为管理员。已有管理员还可以在管理后台按邮箱新增管理员，数据库中已授予的管理员角色不会因邮箱不在 `ADMIN_EMAILS` 中而被降级。
 
@@ -83,6 +86,8 @@ npm run db:migrate
 
 `0007_married_enchantress` 为可审核记录增加 revision，为登录限流增加计数及清理索引，并将历史作品的材料状态与既有审核结果对齐；部署这些代码前必须先应用该 migration。
 
+`0008_lyrical_captain_universe` 新增全站公告单例表。公告固定使用 `current` 键，只保存一条当前内容；启停公告不会删除草稿。
+
 Drizzle 会在数据库中记录已执行的 migration，因此重复构建不会重复应用同一版本。构建环境必须预先提供可连接且具有建表权限的 `DATABASE_URL`；migration 不负责创建 PostgreSQL 数据库实例本身。
 
 ## 常用命令
@@ -97,7 +102,7 @@ npm run test:integration
 npm run test:e2e
 ```
 
-集成测试需要已完成 migration 的测试数据库，可通过 `TEST_DATABASE_URL` 指定。完整邮箱登录 E2E 需要设置 `E2E_MAILPIT_URL`；未设置时会跳过依赖 Mailpit 的用例。E2E 默认使用 `127.0.0.1:3000`，可通过 `E2E_PORT` 或 `E2E_BASE_URL` 覆盖，便于在已有开发服务器占用端口时并行运行。
+集成测试需要已完成 migration 的测试数据库，可通过 `TEST_DATABASE_URL` 指定。完整邮箱登录 E2E 需要设置 `E2E_MAILPIT_URL`；未设置时会跳过依赖 Mailpit 的用例。公告 E2E 会临时改写并恢复当前公告，必须显式设置隔离的 `E2E_DATABASE_URL`，配置后 Playwright 会先应用 migration 且不会复用已有开发服务器；未配置时该用例会跳过。E2E 默认使用 `127.0.0.1:3000`，可通过 `E2E_PORT` 或 `E2E_BASE_URL` 覆盖。
 
 跑 E2E 前请将 `EMAIL_SERVER_PORT` 对齐 Mailpit 实际 SMTP 端口；仓库 `compose.yaml` 默认使用 `1025`。
 
@@ -124,6 +129,9 @@ npm run test:e2e
 - 管理员下架报名/队伍或驳回最终确认/作品时必须填写原因，提交人可以在对应页面查看并修改。
 - 后台作品审核提供完整作品说明和材料链接；审核操作携带记录 revision，提交人重提或另一管理员先操作后，旧页面请求会失败并要求刷新。
 - 管理员权限始终在服务端校验，前端按钮可见性不作为安全边界。
+- 管理员可维护一条全站当前公告并控制启停。标题与正文保存前会规范化，二者共同生成内容版本；仅切换启停或重复保存相同内容不会改变版本。
+- 公告正文支持 GFM 标题、列表、引用、代码、表格、任务列表、链接和 HTTPS 外链图片；原始 HTML 和危险 URL 不会渲染，图片使用懒加载且不发送来源页信息。
+- 游客与登录用户使用相同的浏览器关闭规则：“关闭本次”按北京时间隐藏到当天结束，“不再显示”持续隐藏当前内容版本；标题或正文变化后新版本会重新弹出。关闭记录仅保存在当前站点的浏览器本地存储，不跨设备同步。
 - 只有当前管理员可以在后台新增或移除管理员；尚未注册的邮箱会预创建账户，并在首次魔法链接登录后继续保留管理员角色。移除管理员受三道保护：不能移除自己、不能移除最后一名管理员、不能移除 `ADMIN_EMAILS` 中的种子管理员（后者需改环境变量）。
 - 邮箱魔法链接的邮箱限流在 Auth.js 创建 token 前执行，来源 IP 限流覆盖 Server Action 和公开 Auth 路由。请求即使 SMTP 失败也计入额度，但只有 SMTP 接受邮件后才持久化 token；过期 token 与超过 24 小时的限流桶会自动清理，数据库只保存由 `AUTH_SECRET` 派生的键哈希。
 

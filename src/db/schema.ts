@@ -113,6 +113,26 @@ export const emailSendLimits = pgTable(
   ],
 );
 
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    contentVersion: text("content_version").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check("announcements_current_id_check", sql`${table.id} = 'current'`),
+  ],
+);
+
 export const participants = pgTable(
   "participants",
   {

@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  announcements,
   confirmationMembers,
   participants,
   submissions,
@@ -25,10 +26,45 @@ import {
   teams,
   users,
 } from "@/db/schema";
+import {
+  CURRENT_ANNOUNCEMENT_ID,
+  type PublicAnnouncement,
+} from "@/lib/announcement";
 import { displayNumber, eventDate } from "@/lib/domain";
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
+
+export async function activeAnnouncement(): Promise<PublicAnnouncement | null> {
+  const [announcement] = await db
+    .select({
+      title: announcements.title,
+      markdown: announcements.content,
+      version: announcements.contentVersion,
+    })
+    .from(announcements)
+    .where(
+      and(
+        eq(announcements.id, CURRENT_ANNOUNCEMENT_ID),
+        eq(announcements.enabled, true),
+      ),
+    )
+    .limit(1);
+
+  return announcement ?? null;
+}
+
+export async function announcementSettings() {
+  return (
+    (
+      await db
+        .select()
+        .from(announcements)
+        .where(eq(announcements.id, CURRENT_ANNOUNCEMENT_ID))
+        .limit(1)
+    )[0] ?? null
+  );
+}
 
 // Clamp page params coming from the URL: page must be a positive integer
 // (default 1); pageSize falls back to the default for anything that is not a

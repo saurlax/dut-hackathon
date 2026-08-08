@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import {
   Barlow,
   Barlow_Condensed,
@@ -6,6 +7,7 @@ import {
   Noto_Sans_SC,
 } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { GlobalAnnouncement } from "@/components/global-announcement";
 import { SiteHeader } from "@/components/site-header";
 import { ViewTransitions } from "next-view-transitions";
 import "./globals.css";
@@ -69,6 +71,9 @@ export default function RootLayout({
                 <span className="font-mono">DUT HACKATHON / TEAM CENTER</span>
               </div>
             </footer>
+            <Suspense fallback={null}>
+              <GlobalAnnouncement />
+            </Suspense>
             <Toaster richColors />
           </div>
         </body>
