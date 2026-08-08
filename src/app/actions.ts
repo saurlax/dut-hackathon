@@ -985,11 +985,16 @@ export async function saveSubmission(
     await db.transaction(async (tx) => {
       const owned = await lockTeamForLeader(tx, user.id);
       const confirmation = await tx
-        .select({ id: teamConfirmations.id })
+        .select({
+          id: teamConfirmations.id,
+          auditStatus: teamConfirmations.auditStatus,
+        })
         .from(teamConfirmations)
         .where(eq(teamConfirmations.teamId, owned.team.id))
         .limit(1);
       if (!confirmation.length) fail("请先完成最终组队确认");
+      if (confirmation[0].auditStatus === "rejected")
+        fail("最终确认被驳回，请先重新提交最终确认");
       const values = {
         projectName,
         track,

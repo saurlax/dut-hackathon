@@ -11,6 +11,7 @@ import {
   reviewTeamApplication,
   requestMagicLink,
   saveRegistration,
+  saveSubmission,
   saveTeam,
   submitConfirmation,
   updateAudit,
@@ -649,6 +650,36 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(teamConfirmations.teamId, team.id));
     expect(resubmitted.ok).toBe(true);
     expect(stored).toMatchObject({ auditStatus: "pending", exception: "" });
+  });
+  it("blocks saving a submission while the final confirmation is rejected", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id);
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "rejected",
+      exception: "请重新核对成员",
+    });
+    authUser.id = leader.userId;
+
+    const result = await saveSubmission(
+      { ok: false, message: "" },
+      actionForm({
+        projectName: "Project",
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain("最终确认被驳回");
   });
   it("lets a legacy unconsented member invalidate an old final snapshot", async () => {
     const leader = await makeParticipant("L"),
