@@ -858,6 +858,55 @@ describe("PostgreSQL business constraints", () => {
     });
     expect((await showcase()).items).toEqual([]);
   });
+  it("serializes submission saves against confirmation rejection", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const [confirmation] = await db
+      .insert(teamConfirmations)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        auditStatus: "approved",
+      })
+      .returning();
+    authUser.id = leader.userId;
+    const submission = submissionForm();
+    submission.set("publicDisplay", "on");
+
+    const [saveResult, auditResult] = await Promise.all([
+      saveSubmission({ ok: false, message: "" }, submission),
+      updateAudit(
+        "confirmation",
+        confirmation.id,
+        { ok: false, message: "" },
+        actionForm({ decision: "rejected", reason: "阵容有误" }),
+      ),
+    ]);
+
+    expect(auditResult.ok).toBe(true);
+    const [stored] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, team.id));
+    if (stored) {
+      expect(stored).toMatchObject({
+        publicDisplay: false,
+        publicConsentAt: null,
+        auditStatus: "pending",
+      });
+    } else {
+      expect(saveResult.ok).toBe(false);
+    }
+    const [storedConfirmation] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.id, confirmation.id));
+    expect(storedConfirmation).toMatchObject({ auditStatus: "rejected" });
+  });
   it("lets a member leave after the final confirmation is rejected", async () => {
     const leader = await makeParticipant("L"),
       member = await makeParticipant("M"),
@@ -1374,6 +1423,7 @@ describe("PostgreSQL business constraints", () => {
     expect((await publicTeams("", 1, -1)).pageSize).toBe(12);
     expect((await publicTeams("", 1, 0)).pageSize).toBe(12);
     expect((await publicTeams("", 1, "abc")).pageSize).toBe(12);
+    expect((await publicTeams("", 1, "1.5")).pageSize).toBe(12);
     // Cap at MAX_PAGE_SIZE (50).
     expect((await publicTeams("", 1, 100)).pageSize).toBe(50);
     // page clamping: non-numeric -> 1.
@@ -1826,6 +1876,68 @@ describe("PostgreSQL business constraints", () => {
       .from(participants)
       .where(eq(participants.id, participant.id));
     expect(stored).toMatchObject({ auditStatus: "approved", adminNote: "" });
+  });
+  it("tells the user when an edited rejected registration awaits admin restore", async () => {
+    const participant = await makeParticipant("P", {
+      auditStatus: "rejected",
+      publicDisplay: true,
+    });
+    authUser.id = participant.userId;
+
+    const result = await saveRegistration(
+      { ok: false, message: "" },
+      actionForm({
+        name: participant.name,
+        phone: participant.phone,
+        email: participant.email,
+        school: participant.school,
+        college: participant.college,
+        grade: participant.grade,
+        studentId: participant.studentId,
+        registrationMethod: "暂未确定",
+        publicDisplay: "on",
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("管理员恢复");
+    const [stored] = await db
+      .select()
+      .from(participants)
+      .where(eq(participants.id, participant.id));
+    expect(stored).toMatchObject({
+      auditStatus: "pending",
+      publicDisplay: true,
+    });
+  });
+  it("tells the user when an edited rejected team awaits admin restore", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "rejected",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    authUser.id = leader.userId;
+
+    const result = await saveTeam(
+      { ok: false, message: "" },
+      actionForm({
+        name: team.name,
+        contact: team.contact,
+        description: team.description,
+        recruitmentDeadline: "2099-12-31",
+        maxSize: "4",
+        publicDisplay: "on",
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("管理员恢复");
+    const [stored] = await db.select().from(teams).where(eq(teams.id, team.id));
+    expect(stored).toMatchObject({
+      auditStatus: "pending",
+      publicDisplay: true,
+    });
   });
   it("only lets a participant withdraw their own pending application", async () => {
     const leader = await makeParticipant("L", {

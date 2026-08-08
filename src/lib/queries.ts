@@ -40,8 +40,8 @@ function parsePage(value: string | number | undefined): number {
 }
 
 function parsePageSize(value: string | number | undefined): number {
-  const n = Math.trunc(Number(value));
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_PAGE_SIZE;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) return DEFAULT_PAGE_SIZE;
   return Math.min(n, MAX_PAGE_SIZE);
 }
 

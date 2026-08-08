@@ -257,9 +257,12 @@ export async function saveRegistration(
   revalidatePath("/browse-pool");
   return {
     ok: true,
-    message: parsed.data.publicDisplay
-      ? "报名资料已保存，并已按授权公开展示"
-      : "报名资料已保存",
+    message:
+      auditStatus === "pending"
+        ? "报名资料已保存；如已授权公开，需管理员恢复后才可展示"
+        : parsed.data.publicDisplay
+          ? "报名资料已保存，并已按授权公开展示"
+          : "报名资料已保存",
   };
 }
 
@@ -278,6 +281,7 @@ export async function saveTeam(
     ...parsed.data,
     publicConsentAt: parsed.data.publicDisplay ? now : null,
   };
+  let requiresAdminRestore = false;
   try {
     await db.transaction(async (tx) => {
       const participant = await participantForUserInTransaction(tx, user.id);
@@ -293,6 +297,7 @@ export async function saveTeam(
 
       if (existing) {
         await assertTeamMutable(tx, existing.id);
+        requiresAdminRestore = existing.auditStatus === "rejected";
         const currentSize = await teamSize(tx, existing.id);
         if (currentSize > teamValues.maxSize)
           fail(`当前已有 ${currentSize} 名成员，不能缩减到更小人数`);
@@ -364,9 +369,11 @@ export async function saveTeam(
   revalidatePath("/browse-teams");
   return {
     ok: true,
-    message: parsed.data.publicDisplay
-      ? "队伍资料已保存，并已按授权公开展示"
-      : "队伍资料已保存；当前未授权公开，不会显示在组队大厅",
+    message: requiresAdminRestore
+      ? "队伍资料已保存；如已授权公开，需管理员恢复后才可展示"
+      : parsed.data.publicDisplay
+        ? "队伍资料已保存，并已按授权公开展示"
+        : "队伍资料已保存；当前未授权公开，不会显示在组队大厅",
   };
 }
 
@@ -1034,7 +1041,8 @@ export async function saveSubmission(
         })
         .from(teamConfirmations)
         .where(eq(teamConfirmations.teamId, owned.team.id))
-        .limit(1);
+        .limit(1)
+        .for("update");
       if (!confirmation.length) fail("请先完成最终组队确认");
       // A submission is only allowed once the final team confirmation has been
       // approved by an admin — a pending or rejected confirmation must not open
@@ -1184,20 +1192,14 @@ export async function updateAudit(
         .set({ ...values, exception: note })
         .where(eq(teams.id, id));
     } else if (kind === "confirmation") {
-      await db
-        .update(teamConfirmations)
-        .set({ ...values, exception: note })
-        .where(eq(teamConfirmations.id, id));
-      if (decision === "rejected") {
-        const confirmation = (
-          await db
-            .select({ teamId: teamConfirmations.teamId })
-            .from(teamConfirmations)
-            .where(eq(teamConfirmations.id, id))
-            .limit(1)
-        )[0];
-        if (confirmation) {
-          await db
+      await db.transaction(async (tx) => {
+        const [confirmation] = await tx
+          .update(teamConfirmations)
+          .set({ ...values, exception: note })
+          .where(eq(teamConfirmations.id, id))
+          .returning({ teamId: teamConfirmations.teamId });
+        if (decision === "rejected" && confirmation) {
+          await tx
             .update(submissions)
             .set({
               publicDisplay: false,
@@ -1207,7 +1209,7 @@ export async function updateAudit(
             })
             .where(eq(submissions.teamId, confirmation.teamId));
         }
-      }
+      });
     } else {
       await db
         .update(submissions)
