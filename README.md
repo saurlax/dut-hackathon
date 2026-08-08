@@ -24,7 +24,7 @@
 
 ## 本地开发
 
-需要准备 Node.js 22+、npm 10+ 和 Docker Desktop。也可以自行提供 PostgreSQL 与 SMTP 服务。
+需要准备 Node.js 22.22.2+、npm 10+ 和 Docker Desktop。也可以自行提供 PostgreSQL 与 SMTP 服务。
 
 ```bash
 cp .env.example .env.local
