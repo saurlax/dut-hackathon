@@ -1087,6 +1087,26 @@ export async function updateAudit(
         .update(teamConfirmations)
         .set({ ...values, exception: note })
         .where(eq(teamConfirmations.id, id));
+      if (decision === "rejected") {
+        const confirmation = (
+          await db
+            .select({ teamId: teamConfirmations.teamId })
+            .from(teamConfirmations)
+            .where(eq(teamConfirmations.id, id))
+            .limit(1)
+        )[0];
+        if (confirmation) {
+          await db
+            .update(submissions)
+            .set({
+              publicDisplay: false,
+              publicConsentAt: null,
+              auditStatus: "pending",
+              updatedAt: new Date(),
+            })
+            .where(eq(submissions.teamId, confirmation.teamId));
+        }
+      }
     } else {
       await db
         .update(submissions)

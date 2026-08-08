@@ -681,6 +681,61 @@ describe("PostgreSQL business constraints", () => {
     expect(result).toMatchObject({ ok: false });
     expect(result.message).toContain("最终确认被驳回");
   });
+  it("withdraws public submission visibility when final confirmation is rejected", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+    const [confirmation] = await db
+      .insert(teamConfirmations)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        auditStatus: "approved",
+      })
+      .returning();
+    const [submission] = await db
+      .insert(submissions)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        projectName: "Visible before rejection",
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        auditStatus: "approved",
+      })
+      .returning();
+
+    const result = await updateAudit(
+      "confirmation",
+      confirmation.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "rejected", reason: "阵容有误" }),
+    );
+
+    expect(result.ok).toBe(true);
+    const [stored] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, submission.id));
+    expect(stored).toMatchObject({
+      publicDisplay: false,
+      publicConsentAt: null,
+      auditStatus: "pending",
+    });
+    expect(await showcase()).toEqual([]);
+  });
   it("lets a legacy unconsented member invalidate an old final snapshot", async () => {
     const leader = await makeParticipant("L"),
       member = await makeParticipant("M"),
