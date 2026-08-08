@@ -741,6 +741,47 @@ describe("PostgreSQL business constraints", () => {
     });
     expect(await showcase()).toEqual([]);
   });
+  it("lets a member leave after the final confirmation is rejected", async () => {
+    const leader = await makeParticipant("L"),
+      member = await makeParticipant("M"),
+      team = await makeTeam(leader.id);
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "rejected",
+      exception: "请重新核对成员",
+    });
+    authUser.id = member.userId;
+
+    const result = await respondToMembership(
+      { ok: false, message: "" },
+      actionForm({ decision: "leave" }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(
+      (
+        await db
+          .select()
+          .from(teamMembers)
+          .where(eq(teamMembers.participantId, member.id))
+      ).length,
+    ).toBe(0);
+    expect(
+      (
+        await db
+          .select()
+          .from(teamConfirmations)
+          .where(eq(teamConfirmations.teamId, team.id))
+      ).length,
+    ).toBe(0);
+  });
   it("lets a legacy unconsented member invalidate an old final snapshot", async () => {
     const leader = await makeParticipant("L"),
       member = await makeParticipant("M"),

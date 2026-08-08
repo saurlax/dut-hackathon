@@ -135,11 +135,15 @@ async function teamSize(tx: Transaction, teamId: string) {
 
 async function assertTeamMutable(tx: Transaction, teamId: string) {
   const confirmation = await tx
-    .select({ id: teamConfirmations.id })
+    .select({
+      id: teamConfirmations.id,
+      auditStatus: teamConfirmations.auditStatus,
+    })
     .from(teamConfirmations)
     .where(eq(teamConfirmations.teamId, teamId))
     .limit(1);
-  if (confirmation.length) fail("最终确认后不能修改队伍");
+  if (confirmation.length && confirmation[0].auditStatus !== "rejected")
+    fail("最终确认后不能修改队伍");
 }
 
 function assertTeamAcceptsApplications(
@@ -684,7 +688,10 @@ export async function respondToMembership(
 
       const confirmation = (
         await tx
-          .select({ id: teamConfirmations.id })
+          .select({
+            id: teamConfirmations.id,
+            auditStatus: teamConfirmations.auditStatus,
+          })
           .from(teamConfirmations)
           .where(eq(teamConfirmations.teamId, team.id))
           .limit(1)
@@ -703,7 +710,11 @@ export async function respondToMembership(
             ),
           );
         if (!confirmation) return;
-      } else if (confirmation && membership.consentedAt) {
+      } else if (
+        confirmation &&
+        membership.consentedAt &&
+        confirmation.auditStatus !== "rejected"
+      ) {
         fail("最终确认后不能退出队伍");
       }
 
