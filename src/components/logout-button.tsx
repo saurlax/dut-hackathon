@@ -1,29 +1,32 @@
 "use client";
 
+import type { ComponentProps } from "react";
 import { useTransition } from "react";
 import { logout } from "@/app/actions";
 import { LogOut } from "lucide-react";
 
-export function LogoutButton() {
+export function LogoutButton({
+  onClick,
+  disabled,
+  ...props
+}: ComponentProps<"button">) {
   const [pending, startTransition] = useTransition();
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
+    <button
+      {...props}
+      type="button"
+      data-pending={pending || undefined}
+      aria-busy={pending || undefined}
+      disabled={disabled || pending}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented) return;
         startTransition(() => logout());
       }}
     >
-      <button
-        data-slot="button"
-        data-pending={pending || undefined}
-        aria-busy={pending || undefined}
-        className="w-full"
-        disabled={pending}
-      >
-        <LogOut />
-        退出登录
-      </button>
-    </form>
+      <LogOut />
+      退出登录
+    </button>
   );
 }
