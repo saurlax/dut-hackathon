@@ -22,3 +22,14 @@ export function clientIpFromHeaders(
 
   return normalizeClientIp(raw);
 }
+
+export function resolveEmailRateLimitIp(
+  headers: Headers,
+  trustProxy: boolean,
+  environment = process.env.NODE_ENV,
+): string | null {
+  const ip = clientIpFromHeaders(headers, trustProxy);
+  if (ip) return ip;
+
+  return environment === "production" ? null : "local-dev";
+}

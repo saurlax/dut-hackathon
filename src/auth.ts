@@ -5,11 +5,8 @@ import { eq } from "drizzle-orm";
 import { createTransport } from "nodemailer";
 import { db } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
-import { clientIpFromHeaders } from "@/lib/client-ip";
-import {
-  consumeEmailRateLimit,
-  EmailRateLimitError,
-} from "@/lib/email-rate-limit";
+import { resolveEmailRateLimitIp } from "@/lib/client-ip";
+import { consumeEmailRateLimit } from "@/lib/email-rate-limit";
 import { adminEmails, getServerEnv } from "@/lib/env";
 import { createLoginEmail } from "@/lib/login-email";
 import { authorizeAdminPath } from "@/lib/proxy-authz";
@@ -54,16 +51,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         provider,
         request,
       }) {
-        const ip = clientIpFromHeaders(
+        const rateLimitIp = resolveEmailRateLimitIp(
           request.headers,
           env.TRUST_PROXY === "true",
+          process.env.NODE_ENV,
         );
-        const rateLimitIp =
-          ip ?? (process.env.NODE_ENV === "production" ? null : "local-dev");
-        if (!rateLimitIp) {
-          throw new EmailRateLimitError();
-        }
-        await consumeEmailRateLimit(rateLimitIp);
+        if (rateLimitIp)
+          await consumeEmailRateLimit(`${rateLimitIp}:${identifier}`);
 
         const transport = createTransport(provider.server);
         const result = await transport.sendMail({
