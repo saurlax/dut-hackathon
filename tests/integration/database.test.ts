@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, pool } from "../../src/db/client";
 import {
   addAdminUser,
+  applyToTeam,
   changeTeamLeader,
   closeMyTeam,
   removeAdmin,
@@ -15,6 +16,7 @@ import {
   saveTeam,
   submitConfirmation,
   updateAudit,
+  withdrawApplication,
 } from "../../src/app/actions";
 import {
   adminOverview,
@@ -1143,5 +1145,436 @@ describe("PostgreSQL business constraints", () => {
     expect(pool.items).toHaveLength(5);
     expect(pool.page).toBe(2);
     expect(pool.pageSize).toBe(5);
+  });
+  it("limits active pending applications to three per participant", async () => {
+    const leaders = [];
+    for (let i = 0; i < 4; i++) {
+      const l = await makeParticipant(`L${i}`, {
+        auditStatus: "approved",
+        isInternal: true,
+      });
+      leaders.push(l);
+    }
+    const applicant = await makeParticipant("A", {
+      auditStatus: "approved",
+      isInternal: true,
+    });
+    authUser.id = applicant.userId;
+    for (let i = 0; i < 3; i++) {
+      const team = await makeTeam(leaders[i].id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+      expect(
+        (await applyToTeam(team.id, { ok: false, message: "" }, actionForm({ message: `apply ${i}` }))).ok,
+      ).toBe(true);
+    }
+    const fourthTeam = await makeTeam(leaders[3].id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const blocked = await applyToTeam(
+      fourthTeam.id,
+      { ok: false, message: "" },
+      actionForm({ message: "too many" }),
+    );
+    expect(blocked.ok).toBe(false);
+    expect(blocked.message).toContain("最多 3 支");
+  });
+  it("rejects applications to internal-only teams from external participants", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const external = await makeParticipant("X", { auditStatus: "approved" });
+    authUser.id = external.userId;
+    const result = await applyToTeam(
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ message: "hi" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("校内成员");
+  });
+  it("rejects applications to a team whose recruitment deadline has passed", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+      recruitmentDeadline: "2020-01-01",
+    });
+    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    authUser.id = applicant.userId;
+    const result = await applyToTeam(
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ message: "hi" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("不可申请");
+  });
+  it("rejects a duplicate pending application to the same team", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    authUser.id = applicant.userId;
+    expect(
+      (await applyToTeam(team.id, { ok: false, message: "" }, actionForm({ message: "first" }))).ok,
+    ).toBe(true);
+    const dup = await applyToTeam(
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ message: "again" }),
+    );
+    expect(dup.ok).toBe(false);
+    expect(dup.message).toContain("申请过");
+  });
+  it("rejects applications before the participant audit is approved", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const applicant = await makeParticipant("A", { auditStatus: "pending", isInternal: true });
+    authUser.id = applicant.userId;
+    const result = await applyToTeam(
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ message: "hi" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("审核通过");
+  });
+  it("rejects applications from a participant already in another team", async () => {
+    const leader1 = await makeParticipant("L1", { auditStatus: "approved", isInternal: true });
+    const leader2 = await makeParticipant("L2", { auditStatus: "approved", isInternal: true });
+    const member = await makeParticipant("M", { auditStatus: "approved", isInternal: true });
+    const team1 = await makeTeam(leader1.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const team2 = await makeTeam(leader2.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    await db.insert(teamMembers).values({
+      teamId: team1.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    authUser.id = member.userId;
+    const result = await applyToTeam(
+      team2.id,
+      { ok: false, message: "" },
+      actionForm({ message: "hi" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("已经加入队伍");
+  });
+  it("rejects shrinking a team below its current member count", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const member = await makeParticipant("M", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    authUser.id = leader.userId;
+    const result = await saveTeam(
+      { ok: false, message: "" },
+      actionForm({
+        name: team.name,
+        contact: team.contact,
+        description: team.description,
+        recruitmentDeadline: "2099-12-31",
+        maxSize: "1",
+        publicDisplay: "on",
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("不能缩减");
+  });
+  it("rejects leader transfer to a non-member, an unconfirmed member, or the current leader", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const member = await makeParticipant("M", { auditStatus: "approved" });
+    const unconfirmed = await makeParticipant("U", { auditStatus: "approved" });
+    const outsider = await makeParticipant("O", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: unconfirmed.id,
+      position: 3,
+      consentedAt: null,
+    });
+    authUser.id = leader.userId;
+
+    const notMember = await changeTeamLeader(
+      { ok: false, message: "" },
+      actionForm({ participantNumber: String(outsider.participantNumber) }),
+    );
+    expect(notMember.ok).toBe(false);
+    expect(notMember.message).toContain("当前队伍成员");
+
+    const notConsented = await changeTeamLeader(
+      { ok: false, message: "" },
+      actionForm({ participantNumber: String(unconfirmed.participantNumber) }),
+    );
+    expect(notConsented.ok).toBe(false);
+    expect(notConsented.message).toContain("尚未确认");
+
+    const alreadyLeader = await changeTeamLeader(
+      { ok: false, message: "" },
+      actionForm({ participantNumber: String(leader.participantNumber) }),
+    );
+    expect(alreadyLeader.ok).toBe(false);
+    expect(alreadyLeader.message).toContain("已经是队长");
+  });
+  it("lets the first team's approval win and blocks the second", async () => {
+    const leader1 = await makeParticipant("L1", { auditStatus: "approved", isInternal: true });
+    const leader2 = await makeParticipant("L2", { auditStatus: "approved", isInternal: true });
+    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    const team1 = await makeTeam(leader1.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const team2 = await makeTeam(leader2.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const [app1, app2] = await db
+      .insert(teamApplications)
+      .values([
+        { teamId: team1.id, applicantId: applicant.id },
+        { teamId: team2.id, applicantId: applicant.id },
+      ])
+      .returning();
+
+    authUser.id = leader1.userId;
+    expect(
+      (await reviewTeamApplication(app1.id, { ok: false, message: "" }, actionForm({ decision: "approve" }))).ok,
+    ).toBe(true);
+
+    // Approving the applicant into team1 auto-withdraws their other pending
+    // applications, so team2's later approval can no longer see a pending
+    // record — the applicant can never be pulled into a second team.
+    authUser.id = leader2.userId;
+    const second = await reviewTeamApplication(
+      app2.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "approve" }),
+    );
+    expect(second.ok).toBe(false);
+    expect(second.message).toContain("状态已变化");
+
+    const [withdrawn] = await db
+      .select()
+      .from(teamApplications)
+      .where(eq(teamApplications.id, app2.id));
+    expect(withdrawn.status).toBe("withdrawn");
+
+    const memberships = await db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.participantId, applicant.id));
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0].teamId).toBe(team1.id);
+  });
+  it("audits team, confirmation and submission records with a rejection reason", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    authUser.id = leader.userId;
+
+    const teamRejected = await updateAudit(
+      "team",
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "rejected", reason: "方向不明" }),
+    );
+    expect(teamRejected.ok).toBe(true);
+    const [storedTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, team.id));
+    expect(storedTeam).toMatchObject({ auditStatus: "rejected", exception: "方向不明" });
+    await updateAudit(
+      "team",
+      team.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "approved" }),
+    );
+
+    await submitConfirmation(
+      { ok: false, message: "" },
+      actionForm({ allConfirmed: "on" }),
+    );
+    const [conf] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.teamId, team.id));
+    const confRejected = await updateAudit(
+      "confirmation",
+      conf.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "rejected", reason: "成员信息有误" }),
+    );
+    expect(confRejected.ok).toBe(true);
+    const [storedConf] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.id, conf.id));
+    expect(storedConf).toMatchObject({
+      auditStatus: "rejected",
+      exception: "成员信息有误",
+    });
+    await updateAudit(
+      "confirmation",
+      conf.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "approved" }),
+    );
+
+    const saved = await saveSubmission(
+      { ok: false, message: "" },
+      submissionForm(),
+    );
+    expect(saved.ok).toBe(true);
+    const [sub] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, team.id));
+    const subRejected = await updateAudit(
+      "submission",
+      sub.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "rejected", reason: "材料不全" }),
+    );
+    expect(subRejected.ok).toBe(true);
+    const [storedSub] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, sub.id));
+    expect(storedSub).toMatchObject({ auditStatus: "rejected", adminNote: "材料不全" });
+  });
+  it("resets registration audit when the participant edits their profile", async () => {
+    const participant = await makeParticipant("P", {
+      auditStatus: "approved",
+      publicDisplay: true,
+    });
+    authUser.id = participant.userId;
+    const result = await saveRegistration(
+      { ok: false, message: "" },
+      actionForm({
+        name: participant.name,
+        phone: participant.phone,
+        email: participant.email,
+        school: participant.school,
+        college: participant.college,
+        grade: participant.grade,
+        studentId: participant.studentId,
+        registrationMethod: "暂未确定",
+      }),
+    );
+    expect(result.ok).toBe(true);
+    const [stored] = await db
+      .select()
+      .from(participants)
+      .where(eq(participants.id, participant.id));
+    expect(stored).toMatchObject({ auditStatus: "pending", adminNote: "" });
+  });
+  it("only lets a participant withdraw their own pending application", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved", isInternal: true });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    const applicant = await makeParticipant("A", { auditStatus: "approved", isInternal: true });
+    const other = await makeParticipant("O", { auditStatus: "approved", isInternal: true });
+    authUser.id = applicant.userId;
+    await applyToTeam(team.id, { ok: false, message: "" }, actionForm({ message: "hi" }));
+    const [application] = await db
+      .select()
+      .from(teamApplications)
+      .where(
+        and(
+          eq(teamApplications.teamId, team.id),
+          eq(teamApplications.applicantId, applicant.id),
+        ),
+      );
+
+    authUser.id = other.userId;
+    await withdrawApplication(application.id);
+    const [still] = await db
+      .select()
+      .from(teamApplications)
+      .where(eq(teamApplications.id, application.id));
+    expect(still.status).toBe("pending");
+
+    authUser.id = applicant.userId;
+    await withdrawApplication(application.id);
+    const [withdrawn] = await db
+      .select()
+      .from(teamApplications)
+      .where(eq(teamApplications.id, application.id));
+    expect(withdrawn.status).toBe("withdrawn");
+    const ctx = await teamApplicationContext(applicant.userId, team.id);
+    expect(ctx.activeApplicationCount).toBe(0);
+  });
+  it("filters public teams and participants by keyword", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved", publicDisplay: true });
+    await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+      name: "Alpha Team",
+      projectDirection: "AI",
+    });
+    await makeParticipant("Bob", {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicContact: "bob@example.com",
+      registrationMethod: "个人报名，正在找队伍",
+      bio: "擅长前端开发",
+    });
+
+    expect((await publicTeams("alpha", 1, 50)).total).toBe(1);
+    expect((await publicTeams("nope", 1, 50)).total).toBe(0);
+    expect((await publicParticipants("bob", 1, 50)).total).toBe(1);
+    expect((await publicParticipants("missing", 1, 50)).total).toBe(0);
   });
 });
