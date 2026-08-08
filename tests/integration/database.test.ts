@@ -539,6 +539,52 @@ describe("PostgreSQL business constraints", () => {
     expect(ids).not.toContain(optedOut.id);
     expect(ids).not.toContain(member.id);
   });
+  it("returns complete public profiles without private verification fields", async () => {
+    const participant = await makeParticipant("Detailed profile", {
+      auditStatus: "approved",
+      publicDisplay: true,
+      isInternal: true,
+      registrationMethod: "个人报名，正在找队伍",
+      skills: ["产品设计"],
+      techStack: ["React"],
+      desiredRoles: ["开发"],
+      availableTime: "每周 20 小时",
+      teamRole: "全栈开发",
+      projectExperience: "完整项目经历",
+      bio: "公开简介",
+      portfolioUrl: "https://example.com/portfolio",
+      publicContact: "微信 detailed-profile",
+    });
+
+    const result = await publicParticipants("Detailed profile", 1, 50);
+
+    expect(result.items).toEqual([
+      {
+        id: participant.id,
+        participantNumber: participant.participantNumber,
+        name: "Detailed profile",
+        school: "DUT",
+        college: "CS",
+        grade: "1",
+        isInternal: true,
+        registrationMethod: "个人报名，正在找队伍",
+        skills: ["产品设计"],
+        techStack: ["React"],
+        desiredRoles: ["开发"],
+        availableTime: "每周 20 小时",
+        teamRole: "全栈开发",
+        projectExperience: "完整项目经历",
+        bio: "公开简介",
+        portfolioUrl: "https://example.com/portfolio",
+        publicContact: "微信 detailed-profile",
+      },
+    ]);
+    expect(result.items[0]).not.toHaveProperty("phone");
+    expect(result.items[0]).not.toHaveProperty("email");
+    expect(result.items[0]).not.toHaveProperty("studentId");
+    expect(result.items[0]).not.toHaveProperty("userId");
+    expect(result.items[0]).not.toHaveProperty("adminNote");
+  });
   it("pauses and resumes recruitment without rejecting pending applications", async () => {
     const leader = await makeParticipant("L"),
       applicant = await makeParticipant("A", {

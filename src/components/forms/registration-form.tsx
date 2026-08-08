@@ -280,6 +280,7 @@ export function RegistrationForm({
           <CheckField
             name="publicDisplay"
             label="同意在找队友页面公开展示"
+            description="将公开基础资料、院系与年级、校内身份、报名方式、能力与角色意向、合作安排、经历、简介、作品集和你主动填写的公开联系渠道；报名所需的私密身份核验资料不会公开。"
             checked={draft.publicDisplay}
             onCheckedChange={(checked) => update("publicDisplay", checked)}
           />

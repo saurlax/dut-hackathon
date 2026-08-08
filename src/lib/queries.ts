@@ -64,6 +64,26 @@ const publicTeamFields = {
   recruitStatus: teams.recruitStatus,
 };
 
+const publicParticipantFields = {
+  id: participants.id,
+  participantNumber: participants.participantNumber,
+  name: participants.name,
+  school: participants.school,
+  college: participants.college,
+  grade: participants.grade,
+  isInternal: participants.isInternal,
+  registrationMethod: participants.registrationMethod,
+  skills: participants.skills,
+  techStack: participants.techStack,
+  desiredRoles: participants.desiredRoles,
+  availableTime: participants.availableTime,
+  teamRole: participants.teamRole,
+  projectExperience: participants.projectExperience,
+  bio: participants.bio,
+  portfolioUrl: participants.portfolioUrl,
+  publicContact: participants.publicContact,
+};
+
 const publicSubmissionFields = {
   id: submissions.id,
   projectName: submissions.projectName,
@@ -115,18 +135,7 @@ export async function publicParticipants(
   );
   const [items, totalRows] = await Promise.all([
     db
-      .select({
-        id: participants.id,
-        participantNumber: participants.participantNumber,
-        name: participants.name,
-        school: participants.school,
-        college: participants.college,
-        grade: participants.grade,
-        bio: participants.bio,
-        desiredRoles: participants.desiredRoles,
-        techStack: participants.techStack,
-        publicContact: participants.publicContact,
-      })
+      .select(publicParticipantFields)
       .from(participants)
       .leftJoin(teamMembers, eq(teamMembers.participantId, participants.id))
       .where(where)
