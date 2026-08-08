@@ -7,6 +7,7 @@ import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
 import { Pager } from "@/components/pager";
+import { BackHome } from "@/components/back-home";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -20,6 +21,7 @@ export default async function TeamsPage({
   const items = result.items;
   return (
     <>
+      <BackHome />
       <PageHeading
         eyebrow="TEAM HALL"
         title="寻找正在招募的队伍"

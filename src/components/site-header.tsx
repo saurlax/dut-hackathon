@@ -14,6 +14,7 @@ import {
 import { LogIn, LogOut, ShieldCheck, UserRound } from "lucide-react";
 
 const publicLinks = [
+  ["/", "首页", "00"],
   ["/browse-teams", "队伍大厅", "01"],
   ["/browse-pool", "找队友", "02"],
   ["/showcase", "作品展示", "03"],
@@ -35,6 +36,8 @@ export async function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link
           href="/"
+          aria-label="返回首页"
+          title="返回首页"
           className="mr-auto flex min-w-0 items-center gap-2.5 text-foreground"
         >
           <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-primary shadow-sm ring-1 ring-inset ring-primary/15">

@@ -1,8 +1,15 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import Link from "next/link";
 import { saveRegistration } from "@/app/actions";
 import { initialActionState } from "@/lib/domain";
 import type { participants } from "@/db/schema";
+import {
+  roleOptions,
+  skillOptions,
+  techStackOptions,
+  trackOptions,
+} from "@/lib/tag-options";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,6 +25,8 @@ import {
   TextAreaField,
   TextField,
 } from "./form-parts";
+import { TagSelectField } from "./tag-select-field";
+import { CheckCircle2, ClipboardCheck, PlusCircle, Users } from "lucide-react";
 
 const registrationMethods = [
   "个人报名，正在找队伍",
@@ -27,6 +36,57 @@ const registrationMethods = [
 ] as const;
 
 type Participant = typeof participants.$inferSelect;
+type RegistrationDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  school: string;
+  college: string;
+  grade: string;
+  studentId: string;
+  registrationMethod: string;
+  skills: string[];
+  techStack: string[];
+  desiredRoles: string[];
+  expectedTracks: string;
+  availableTime: string;
+  teamRole: string;
+  portfolioUrl: string;
+  publicContact: string;
+  projectExperience: string;
+  bio: string;
+  isInternal: boolean;
+  publicDisplay: boolean;
+};
+
+function registrationDraft(
+  participant: Participant | null,
+  email: string,
+): RegistrationDraft {
+  return {
+    name: participant?.name ?? "",
+    phone: participant?.phone ?? "",
+    email: participant?.email ?? email,
+    school: participant?.school ?? "",
+    college: participant?.college ?? "",
+    grade: participant?.grade ?? "",
+    studentId: participant?.studentId ?? "",
+    registrationMethod: participant?.registrationMethod ?? "暂未确定",
+    skills: participant?.skills ?? [],
+    techStack: participant?.techStack ?? [],
+    desiredRoles: participant?.desiredRoles ?? [],
+    expectedTracks: participant?.expectedTracks.join(", ") ?? "",
+    availableTime: participant?.availableTime ?? "",
+    teamRole: participant?.teamRole ?? "",
+    portfolioUrl: participant?.portfolioUrl ?? "",
+    publicContact: participant?.publicContact ?? "",
+    projectExperience: participant?.projectExperience ?? "",
+    bio: participant?.bio ?? "",
+    isInternal: participant?.isInternal ?? false,
+    publicDisplay: participant?.publicDisplay ?? false,
+  };
+}
+
 export function RegistrationForm({
   participant,
   email,
@@ -38,146 +98,213 @@ export function RegistrationForm({
     saveRegistration,
     initialActionState,
   );
+  const [draft, setDraft] = useState(() =>
+    registrationDraft(participant, email),
+  );
+  function update<Key extends keyof RegistrationDraft>(
+    key: Key,
+    value: RegistrationDraft[Key],
+  ) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
   return (
-    <form action={action} className="form-surface space-y-6">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <TextField
-          name="name"
-          label="姓名"
-          defaultValue={participant?.name}
-          required
-        />
-        <TextField
-          name="phone"
-          label="手机号"
-          defaultValue={participant?.phone}
-          required
-        />
-        <TextField
-          name="email"
-          label="联系邮箱（可与登录邮箱不同）"
-          type="email"
-          defaultValue={participant?.email ?? email}
-          required
-        />
-        <TextField
-          name="school"
-          label="学校"
-          defaultValue={participant?.school}
-          required
-        />
-        <TextField
-          name="college"
-          label="学院"
-          defaultValue={participant?.college}
-          required
-        />
-        <TextField
-          name="grade"
-          label="年级"
-          defaultValue={participant?.grade}
-          required
-        />
-        <TextField
-          name="studentId"
-          label="学号"
-          defaultValue={participant?.studentId}
-          required
-        />
-        <div className="space-y-2">
-          <Label
-            htmlFor="registrationMethod"
-            className="font-semibold text-foreground/85"
-          >
-            报名方式 *
-          </Label>
-          <Select
-            name="registrationMethod"
-            defaultValue={participant?.registrationMethod ?? "暂未确定"}
-            required
-          >
-            <SelectTrigger id="registrationMethod" className="w-full">
-              <SelectValue placeholder="请选择报名方式" />
-            </SelectTrigger>
-            <SelectContent>
-              {registrationMethods.map((method) => (
-                <SelectItem key={method} value={method}>
-                  {method}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <>
+      {state.ok && (
+        <div className="mb-6 rounded-xl border border-success/25 bg-success/10 p-5">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
+            <div>
+              <h2 className="font-display text-lg font-bold">报名资料已保存</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                资料会按你的公开授权立即展示；管理员会不定期巡查违规内容。
+                接下来可以查看报名资料，或直接创建队伍。
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/my-registration">
+                <ClipboardCheck />
+                查看我的报名
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/create">
+                <PlusCircle />
+                创建队伍
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/browse-teams">
+                <Users />
+                浏览队伍
+              </Link>
+            </Button>
+          </div>
         </div>
-        <TextField
-          name="skills"
-          label="技能标签"
-          defaultValue={participant?.skills.join(", ")}
-          placeholder="产品, 设计, 前端"
-        />
-        <TextField
-          name="techStack"
-          label="熟悉技术"
-          defaultValue={participant?.techStack.join(", ")}
-          placeholder="Next.js, Python"
-        />
-        <TextField
-          name="desiredRoles"
-          label="希望承担角色"
-          defaultValue={participant?.desiredRoles.join(", ")}
-        />
-        <TextField
-          name="expectedTracks"
-          label="期望赛道"
-          defaultValue={participant?.expectedTracks.join(", ")}
-        />
-        <TextField
-          name="availableTime"
-          label="可投入时间"
-          defaultValue={participant?.availableTime}
-        />
-        <TextField
-          name="teamRole"
-          label="队内角色"
-          defaultValue={participant?.teamRole}
-        />
-        <TextField
-          name="portfolioUrl"
-          label="GitHub 或作品集"
-          type="url"
-          defaultValue={participant?.portfolioUrl}
-        />
-        <TextField
-          name="publicContact"
-          label="公开联系方式"
-          defaultValue={participant?.publicContact}
-        />
-        <TextAreaField
-          name="projectExperience"
-          label="项目经历"
-          defaultValue={participant?.projectExperience}
-        />
-        <TextAreaField
-          name="bio"
-          label="个人简介"
-          defaultValue={participant?.bio}
-        />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <CheckField
-          name="isInternal"
-          label="我是校内学生"
-          defaultChecked={participant?.isInternal ?? false}
-        />
-        <CheckField
-          name="publicDisplay"
-          label="同意在找队友页面公开展示"
-          defaultChecked={participant?.publicDisplay}
-        />
-      </div>
-      <FormMessage state={state} />
-      <Button size="lg" disabled={pending}>
-        {pending ? "保存中…" : participant ? "保存修改" : "提交报名"}
-      </Button>
-    </form>
+      )}
+      <form action={action} className="form-surface space-y-6">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <TextField
+            name="name"
+            label="姓名"
+            value={draft.name}
+            onChange={(value) => update("name", value)}
+            required
+          />
+          <TextField
+            name="phone"
+            label="手机号"
+            value={draft.phone}
+            onChange={(value) => update("phone", value)}
+            required
+          />
+          <TextField
+            name="email"
+            label="联系邮箱（可与登录邮箱不同）"
+            type="email"
+            value={draft.email}
+            onChange={(value) => update("email", value)}
+            required
+          />
+          <TextField
+            name="school"
+            label="学校"
+            value={draft.school}
+            onChange={(value) => update("school", value)}
+            required
+          />
+          <TextField
+            name="college"
+            label="学院"
+            value={draft.college}
+            onChange={(value) => update("college", value)}
+            required
+          />
+          <TextField
+            name="grade"
+            label="年级"
+            value={draft.grade}
+            onChange={(value) => update("grade", value)}
+            required
+          />
+          <TextField
+            name="studentId"
+            label="学号"
+            value={draft.studentId}
+            onChange={(value) => update("studentId", value)}
+            required
+          />
+          <div className="space-y-2">
+            <Label
+              htmlFor="registrationMethod"
+              className="font-semibold text-foreground/85"
+            >
+              报名方式 *
+            </Label>
+            <Select
+              name="registrationMethod"
+              value={draft.registrationMethod}
+              onValueChange={(value) => update("registrationMethod", value)}
+              required
+            >
+              <SelectTrigger id="registrationMethod" className="w-full">
+                <SelectValue placeholder="请选择报名方式" />
+              </SelectTrigger>
+              <SelectContent>
+                {registrationMethods.map((method) => (
+                  <SelectItem key={method} value={method}>
+                    {method}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <TagSelectField
+            name="skills"
+            label="技能标签"
+            options={skillOptions}
+            defaultValue={draft.skills}
+          />
+          <TagSelectField
+            name="techStack"
+            label="熟悉技术"
+            options={techStackOptions}
+            defaultValue={draft.techStack}
+          />
+          <TagSelectField
+            name="desiredRoles"
+            label="希望承担角色"
+            options={roleOptions}
+            defaultValue={draft.desiredRoles}
+          />
+          <TagSelectField
+            name="expectedTracks"
+            label="期望赛道"
+            options={trackOptions}
+            defaultValue={draft.expectedTracks
+              .split(/[,，]/)
+              .map((item) => item.trim())
+              .filter(Boolean)}
+          />
+          <TextField
+            name="availableTime"
+            label="可投入时间"
+            value={draft.availableTime}
+            onChange={(value) => update("availableTime", value)}
+          />
+          <TextField
+            name="teamRole"
+            label="队内角色"
+            value={draft.teamRole}
+            onChange={(value) => update("teamRole", value)}
+          />
+          <TextField
+            name="portfolioUrl"
+            label="GitHub 或作品集"
+            type="url"
+            value={draft.portfolioUrl}
+            onChange={(value) => update("portfolioUrl", value)}
+          />
+          <TextField
+            name="publicContact"
+            label="公开联系方式（选填）"
+            value={draft.publicContact}
+            onChange={(value) => update("publicContact", value)}
+            placeholder="邮箱、微信或手机号"
+          />
+          <TextAreaField
+            name="projectExperience"
+            label="项目经历"
+            value={draft.projectExperience}
+            onChange={(value) => update("projectExperience", value)}
+          />
+          <TextAreaField
+            name="bio"
+            label="个人简介"
+            value={draft.bio}
+            onChange={(value) => update("bio", value)}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CheckField
+            name="isInternal"
+            label="我是校内学生"
+            checked={draft.isInternal}
+            onCheckedChange={(checked) => update("isInternal", checked)}
+          />
+          <CheckField
+            name="publicDisplay"
+            label="同意在找队友页面公开展示"
+            checked={draft.publicDisplay}
+            onCheckedChange={(checked) => update("publicDisplay", checked)}
+          />
+        </div>
+        <FormMessage state={state} />
+        <Button size="lg" disabled={pending}>
+          {pending ? "保存中…" : participant ? "保存修改" : "提交报名"}
+        </Button>
+      </form>
+    </>
   );
 }

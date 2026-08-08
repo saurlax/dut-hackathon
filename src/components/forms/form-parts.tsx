@@ -6,17 +6,22 @@ export function TextField({
   name,
   label,
   defaultValue = "",
+  value,
   type = "text",
   required = false,
   placeholder,
+  onChange,
 }: {
   name: string;
   label: string;
   defaultValue?: string | number;
+  value?: string | number;
   type?: string;
   required?: boolean;
   placeholder?: string;
+  onChange?: (value: string) => void;
 }) {
+  const controlled = value !== undefined;
   return (
     <div className="space-y-2">
       <Label htmlFor={name} className="font-semibold text-foreground/85">
@@ -27,7 +32,10 @@ export function TextField({
         id={name}
         name={name}
         type={type}
-        defaultValue={defaultValue}
+        {...(controlled ? { value } : { defaultValue })}
+        onChange={
+          onChange ? (event) => onChange(event.target.value) : undefined
+        }
         required={required}
         placeholder={placeholder}
       />
@@ -38,15 +46,20 @@ export function TextAreaField({
   name,
   label,
   defaultValue = "",
+  value,
   required = false,
   maxLength = 2000,
+  onChange,
 }: {
   name: string;
   label: string;
   defaultValue?: string;
+  value?: string;
   required?: boolean;
   maxLength?: number;
+  onChange?: (value: string) => void;
 }) {
+  const controlled = value !== undefined;
   return (
     <div className="space-y-2 sm:col-span-2">
       <Label htmlFor={name} className="font-semibold text-foreground/85">
@@ -56,7 +69,10 @@ export function TextAreaField({
       <Textarea
         id={name}
         name={name}
-        defaultValue={defaultValue}
+        {...(controlled ? { value } : { defaultValue })}
+        onChange={
+          onChange ? (event) => onChange(event.target.value) : undefined
+        }
         required={required}
         maxLength={maxLength}
         rows={4}
@@ -68,19 +84,29 @@ export function CheckField({
   name,
   label,
   defaultChecked = false,
+  checked,
   description,
+  onCheckedChange,
 }: {
   name: string;
   label: string;
   defaultChecked?: boolean;
+  checked?: boolean;
   description?: string;
+  onCheckedChange?: (checked: boolean) => void;
 }) {
+  const controlled = checked !== undefined;
   return (
     <label className="flex items-start gap-3 rounded-lg border border-primary/15 bg-white/65 p-4 text-sm font-medium transition-colors hover:border-primary/30 hover:bg-secondary/60">
       <input
         type="checkbox"
         name={name}
-        defaultChecked={defaultChecked}
+        {...(controlled ? { checked } : { defaultChecked })}
+        onChange={
+          onCheckedChange
+            ? (event) => onCheckedChange(event.target.checked)
+            : undefined
+        }
         className="mt-0.5 size-4 shrink-0 accent-primary"
       />
       <span>

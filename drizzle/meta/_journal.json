@@ -36,6 +36,13 @@
       "when": 1786169452359,
       "tag": "0004_steady_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0005_auto_approve_profiles",
+      "breakpoints": true
     }
   ]
 }

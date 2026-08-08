@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applicationSchema,
   auditDecisionSchema,
+  formDataObject,
   participantSchema,
   submissionSchema,
   teamSchema,
@@ -32,13 +33,11 @@ const submissionInput = {
 };
 
 describe("business validation", () => {
-  it("rejects a public profile without contact information", () => {
-    const result = participantSchema.safeParse({
-      ...participantInput,
-      publicDisplay: "on",
-    });
-    expect(result.success).toBe(false);
-  });
+  it("allows a public profile without contact information", () =>
+    expect(
+      participantSchema.parse({ ...participantInput, publicDisplay: "on" })
+        .publicContact,
+    ).toBe(""));
   it("treats omitted and non-checkbox strings as false", () => {
     expect(participantSchema.parse(participantInput)).toMatchObject({
       isInternal: false,
@@ -180,5 +179,15 @@ describe("business validation", () => {
         email: "not-an-email",
       }).success,
     ).toBe(false);
+  });
+  it("collects repeated form values into arrays", () => {
+    const formData = new FormData();
+    formData.append("skills", "产品");
+    formData.append("skills", "前端");
+    formData.append("name", "测试");
+    expect(formDataObject(formData)).toEqual({
+      skills: ["产品", "前端"],
+      name: "测试",
+    });
   });
 });

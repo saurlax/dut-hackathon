@@ -27,13 +27,15 @@ export function AdminAuditQueue({
   headers,
   records,
   allLabel,
+  defaultFilter = "pending",
 }: {
   title: string;
   headers: string[];
   records: AdminAuditRecord[];
   allLabel: string;
+  defaultFilter?: AuditFilter;
 }) {
-  const [filter, setFilter] = useState<AuditFilter>("pending");
+  const [filter, setFilter] = useState<AuditFilter>(defaultFilter);
   const visibleRecords = records.filter(
     (record) => filter === "all" || record.status === filter,
   );
