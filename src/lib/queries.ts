@@ -27,6 +27,24 @@ import {
 } from "@/db/schema";
 import { displayNumber, eventDate } from "@/lib/domain";
 
+const DEFAULT_PAGE_SIZE = 12;
+const MAX_PAGE_SIZE = 50;
+
+// Clamp page params coming from the URL: page must be a positive integer
+// (default 1); pageSize falls back to the default for anything that is not a
+// positive integer and is capped at MAX_PAGE_SIZE. This replaces the old
+// hard `.limit(100)` and removes the negative-pageSize data-loss bug.
+function parsePage(value: string | number | undefined): number {
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
+function parsePageSize(value: string | number | undefined): number {
+  const n = Math.trunc(Number(value));
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_PAGE_SIZE;
+  return Math.min(n, MAX_PAGE_SIZE);
+}
+
 const publicTeamFields = {
   id: teams.id,
   teamNumber: teams.teamNumber,
@@ -73,44 +91,69 @@ export async function participantForUser(userId: string) {
   );
 }
 
-export async function publicParticipants(keyword = "") {
-  return db
-    .select({
-      id: participants.id,
-      participantNumber: participants.participantNumber,
-      name: participants.name,
-      school: participants.school,
-      college: participants.college,
-      grade: participants.grade,
-      bio: participants.bio,
-      desiredRoles: participants.desiredRoles,
-      techStack: participants.techStack,
-      publicContact: participants.publicContact,
-    })
-    .from(participants)
-    .leftJoin(teamMembers, eq(teamMembers.participantId, participants.id))
-    .where(
-      and(
-        eq(participants.publicDisplay, true),
-        eq(participants.auditStatus, "approved"),
-        isNull(teamMembers.participantId),
-        notInArray(participants.registrationMethod, [
-          "已经加入队伍",
-          "个人参赛，不再组队",
-        ]),
-        keyword
-          ? or(
-              ilike(participants.name, `%${keyword}%`),
-              ilike(participants.bio, `%${keyword}%`),
-            )
-          : undefined,
-      ),
-    )
-    .orderBy(desc(participants.updatedAt))
-    .limit(100);
+export async function publicParticipants(
+  keyword = "",
+  page: string | number = 1,
+  pageSize: string | number = DEFAULT_PAGE_SIZE,
+) {
+  const p = parsePage(page);
+  const ps = parsePageSize(pageSize);
+  const where = and(
+    eq(participants.publicDisplay, true),
+    eq(participants.auditStatus, "approved"),
+    isNull(teamMembers.participantId),
+    notInArray(participants.registrationMethod, [
+      "已经加入队伍",
+      "个人参赛，不再组队",
+    ]),
+    keyword
+      ? or(
+          ilike(participants.name, `%${keyword}%`),
+          ilike(participants.bio, `%${keyword}%`),
+        )
+      : undefined,
+  );
+  const [items, totalRows] = await Promise.all([
+    db
+      .select({
+        id: participants.id,
+        participantNumber: participants.participantNumber,
+        name: participants.name,
+        school: participants.school,
+        college: participants.college,
+        grade: participants.grade,
+        bio: participants.bio,
+        desiredRoles: participants.desiredRoles,
+        techStack: participants.techStack,
+        publicContact: participants.publicContact,
+      })
+      .from(participants)
+      .leftJoin(teamMembers, eq(teamMembers.participantId, participants.id))
+      .where(where)
+      .orderBy(desc(participants.updatedAt))
+      .limit(ps)
+      .offset((p - 1) * ps),
+    db
+      .select({ value: count() })
+      .from(participants)
+      .leftJoin(teamMembers, eq(teamMembers.participantId, participants.id))
+      .where(where),
+  ]);
+  return {
+    items,
+    total: Number(totalRows[0]?.value ?? 0),
+    page: p,
+    pageSize: ps,
+  };
 }
 
-export async function publicTeams(keyword = "") {
+export async function publicTeams(
+  keyword = "",
+  page: string | number = 1,
+  pageSize: string | number = DEFAULT_PAGE_SIZE,
+) {
+  const p = parsePage(page);
+  const ps = parsePageSize(pageSize);
   const size = db
     .select({
       teamId: teamMembers.teamId,
@@ -120,39 +163,48 @@ export async function publicTeams(keyword = "") {
     .where(isNotNull(teamMembers.consentedAt))
     .groupBy(teamMembers.teamId)
     .as("team_size");
-  return db
-    .select({
-      team: publicTeamFields,
-      leaderName: participants.name,
-      currentSize: sql<number>`cast(coalesce(${size.value}, 0) as integer)`,
-    })
-    .from(teams)
-    .leftJoin(
-      participants,
-      and(
-        eq(teams.leaderParticipantId, participants.id),
-        eq(participants.publicDisplay, true),
-        eq(participants.auditStatus, "approved"),
-      ),
-    )
-    .leftJoin(size, eq(teams.id, size.teamId))
-    .where(
-      and(
-        eq(teams.publicDisplay, true),
-        isNotNull(teams.publicConsentAt),
-        eq(teams.auditStatus, "approved"),
-        eq(teams.recruitStatus, "recruiting"),
-        gte(teams.recruitmentDeadline, eventDate()),
-        keyword
-          ? or(
-              ilike(teams.name, `%${keyword}%`),
-              ilike(teams.projectDirection, `%${keyword}%`),
-            )
-          : undefined,
-      ),
-    )
-    .orderBy(desc(teams.updatedAt))
-    .limit(100);
+  const where = and(
+    eq(teams.publicDisplay, true),
+    isNotNull(teams.publicConsentAt),
+    eq(teams.auditStatus, "approved"),
+    eq(teams.recruitStatus, "recruiting"),
+    gte(teams.recruitmentDeadline, eventDate()),
+    keyword
+      ? or(
+          ilike(teams.name, `%${keyword}%`),
+          ilike(teams.projectDirection, `%${keyword}%`),
+        )
+      : undefined,
+  );
+  const [items, totalRows] = await Promise.all([
+    db
+      .select({
+        team: publicTeamFields,
+        leaderName: participants.name,
+        currentSize: sql<number>`cast(coalesce(${size.value}, 0) as integer)`,
+      })
+      .from(teams)
+      .leftJoin(
+        participants,
+        and(
+          eq(teams.leaderParticipantId, participants.id),
+          eq(participants.publicDisplay, true),
+          eq(participants.auditStatus, "approved"),
+        ),
+      )
+      .leftJoin(size, eq(teams.id, size.teamId))
+      .where(where)
+      .orderBy(desc(teams.updatedAt))
+      .limit(ps)
+      .offset((p - 1) * ps),
+    db.select({ value: count() }).from(teams).where(where),
+  ]);
+  return {
+    items,
+    total: Number(totalRows[0]?.value ?? 0),
+    page: p,
+    pageSize: ps,
+  };
 }
 
 export async function publicTeamDetail(id: string) {
@@ -393,31 +445,51 @@ export async function submissionForTeam(teamId: string) {
   );
 }
 
-export async function showcase(keyword = "") {
-  return db
-    .select({
-      submission: {
-        id: submissions.id,
-        projectName: submissions.projectName,
-        track: submissions.track,
-        oneLiner: submissions.oneLiner,
-      },
-      teamName: teams.name,
-    })
-    .from(submissions)
-    .innerJoin(teams, eq(submissions.teamId, teams.id))
-    .where(
-      and(
-        eq(submissions.auditStatus, "approved"),
-        eq(submissions.publicDisplay, true),
-        isNotNull(submissions.publicConsentAt),
-        eq(teams.auditStatus, "approved"),
-        eq(teams.publicDisplay, true),
-        isNotNull(teams.publicConsentAt),
-        keyword ? ilike(submissions.projectName, `%${keyword}%`) : undefined,
-      ),
-    )
-    .orderBy(desc(submissions.updatedAt));
+export async function showcase(
+  keyword = "",
+  page: string | number = 1,
+  pageSize: string | number = DEFAULT_PAGE_SIZE,
+) {
+  const p = parsePage(page);
+  const ps = parsePageSize(pageSize);
+  const where = and(
+    eq(submissions.auditStatus, "approved"),
+    eq(submissions.publicDisplay, true),
+    isNotNull(submissions.publicConsentAt),
+    eq(teams.auditStatus, "approved"),
+    eq(teams.publicDisplay, true),
+    isNotNull(teams.publicConsentAt),
+    keyword ? ilike(submissions.projectName, `%${keyword}%`) : undefined,
+  );
+  const [items, totalRows] = await Promise.all([
+    db
+      .select({
+        submission: {
+          id: submissions.id,
+          projectName: submissions.projectName,
+          track: submissions.track,
+          oneLiner: submissions.oneLiner,
+        },
+        teamName: teams.name,
+      })
+      .from(submissions)
+      .innerJoin(teams, eq(submissions.teamId, teams.id))
+      .where(where)
+      .orderBy(desc(submissions.updatedAt))
+      .limit(ps)
+      .offset((p - 1) * ps),
+    db
+      .select({ value: count() })
+      .from(submissions)
+      .innerJoin(teams, eq(submissions.teamId, teams.id))
+      .where(where),
+  ]);
+  return {
+    items,
+    total: Number(totalRows[0]?.value ?? 0),
+    page: p,
+    pageSize: ps,
+  };
 }
 
 export async function publicSubmissionDetail(id: string) {

@@ -297,7 +297,7 @@ describe("PostgreSQL business constraints", () => {
       consentedAt: new Date(),
     });
 
-    const ids = (await publicParticipants()).map(({ id }) => id);
+    const ids = (await publicParticipants()).items.map(({ id }) => id);
 
     expect(ids).toContain(active.id);
     expect(ids).not.toContain(optedOut.id);
@@ -533,7 +533,9 @@ describe("PostgreSQL business constraints", () => {
       publicTeams(),
       publicTeamDetail(team.id),
     ]);
-    expect(list.find(({ team: item }) => item.id === team.id)).toMatchObject({
+    expect(
+      list.items.find(({ team: item }) => item.id === team.id),
+    ).toMatchObject({
       leaderName: null,
       currentSize: 2,
     });
@@ -577,7 +579,7 @@ describe("PostgreSQL business constraints", () => {
       })
       .returning();
 
-    expect(await showcase()).toEqual([]);
+    expect((await showcase()).items).toEqual([]);
     expect(await publicSubmissionDetail(submission.id)).toBeNull();
     await db
       .update(submissions)
@@ -587,13 +589,13 @@ describe("PostgreSQL business constraints", () => {
     expect(detail?.submission.projectName).toBe("Private by default");
     expect("adminNote" in (detail?.submission ?? {})).toBe(false);
     expect("submittedById" in (detail?.submission ?? {})).toBe(false);
-    expect(await showcase()).toHaveLength(1);
+    expect((await showcase()).items).toHaveLength(1);
 
     await db
       .update(teams)
       .set({ auditStatus: "pending" })
       .where(eq(teams.id, team.id));
-    expect(await showcase()).toEqual([]);
+    expect((await showcase()).items).toEqual([]);
     expect(await publicSubmissionDetail(submission.id)).toBeNull();
 
     await db
@@ -604,7 +606,7 @@ describe("PostgreSQL business constraints", () => {
         publicConsentAt: null,
       })
       .where(eq(teams.id, team.id));
-    expect(await showcase()).toEqual([]);
+    expect((await showcase()).items).toEqual([]);
     expect(await publicSubmissionDetail(submission.id)).toBeNull();
   });
   it("blocks duplicate final confirmation unless the previous review was rejected", async () => {
@@ -1088,5 +1090,58 @@ describe("PostgreSQL business constraints", () => {
     } finally {
       process.env.ADMIN_EMAILS = previous;
     }
+  });
+  it("paginates public teams and participants with clamped page params", async () => {
+    // 15 public recruiting teams, each with a unique leader.
+    for (let i = 0; i < 15; i++) {
+      const leader = await makeParticipant(`L${i}`, {
+        auditStatus: "approved",
+        publicDisplay: true,
+      });
+      await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        name: `Team-${i}`,
+      });
+    }
+
+    const page1 = await publicTeams("", 1, 5);
+    const page2 = await publicTeams("", 2, 5);
+    const page3 = await publicTeams("", 3, 5);
+    const page4 = await publicTeams("", 4, 5);
+    expect(page1.items).toHaveLength(5);
+    expect(page2.items).toHaveLength(5);
+    expect(page3.items).toHaveLength(5);
+    expect(page4.items).toHaveLength(0);
+    expect(page1.total).toBe(15);
+    const names = [...page1.items, ...page2.items, ...page3.items].map(
+      ({ team }) => team.name,
+    );
+    expect(new Set(names).size).toBe(15);
+
+    // pageSize clamping: negative / zero / non-numeric fall back to 12.
+    expect((await publicTeams("", 1, -1)).pageSize).toBe(12);
+    expect((await publicTeams("", 1, 0)).pageSize).toBe(12);
+    expect((await publicTeams("", 1, "abc")).pageSize).toBe(12);
+    // Cap at MAX_PAGE_SIZE (50).
+    expect((await publicTeams("", 1, 100)).pageSize).toBe(50);
+    // page clamping: non-numeric -> 1.
+    expect((await publicTeams("", "nope", 5)).page).toBe(1);
+
+    // 15 approved public participants who are not in any team.
+    for (let i = 0; i < 15; i++) {
+      await makeParticipant(`Pool${i}`, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicContact: `pool${i}@example.com`,
+        registrationMethod: "个人报名，正在找队伍",
+      });
+    }
+    const pool = await publicParticipants("", 2, 5);
+    expect(pool.total).toBe(15);
+    expect(pool.items).toHaveLength(5);
+    expect(pool.page).toBe(2);
+    expect(pool.pageSize).toBe(5);
   });
 });

@@ -3,15 +3,17 @@ import { displayNumber } from "@/lib/domain";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
+import { Pager } from "@/components/pager";
 import { Card } from "@/components/ui/card";
 
 export default async function PoolPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
-  const { q = "" } = await searchParams;
-  const items = await publicParticipants(q);
+  const { q = "", page, pageSize } = await searchParams;
+  const result = await publicParticipants(q, page, pageSize);
+  const items = result.items;
   return (
     <>
       <PageHeading
@@ -30,7 +32,7 @@ export default async function PoolPage({
           <span className="inline-flex items-center gap-1.5 border border-foreground/30 bg-foreground/5 px-2 py-0.5">
             <span className="h-1.5 w-1.5 bg-foreground" />
             <span className="label-mono text-[10px] text-foreground">
-              {String(items.length).padStart(2, "0")} PEOPLE
+              {String(result.total).padStart(2, "0")} PEOPLE
             </span>
           </span>
         </div>
@@ -131,6 +133,13 @@ export default async function PoolPage({
           description="换个关键词，或稍后再来看看。"
         />
       )}
+      <Pager
+        basePath="/browse-pool"
+        searchParams={{ q }}
+        page={result.page}
+        pageSize={result.pageSize}
+        total={result.total}
+      />
     </>
   );
 }

@@ -6,16 +6,18 @@ import { cn } from "@/lib/utils";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
+import { Pager } from "@/components/pager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export default async function TeamsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
-  const { q = "" } = await searchParams;
-  const items = await publicTeams(q);
+  const { q = "", page, pageSize } = await searchParams;
+  const result = await publicTeams(q, page, pageSize);
+  const items = result.items;
   return (
     <>
       <PageHeading
@@ -34,7 +36,7 @@ export default async function TeamsPage({
           <span className="inline-flex items-center gap-1.5 border border-primary bg-primary/10 px-2 py-0.5">
             <span className="h-1.5 w-1.5 bg-primary" />
             <span className="label-mono text-[10px] text-primary">
-              {String(items.length).padStart(2, "0")} RECRUITING
+              {String(result.total).padStart(2, "0")} RECRUITING
             </span>
           </span>
         </div>
@@ -203,6 +205,13 @@ export default async function TeamsPage({
           description="换个关键词试试，或创建第一支队伍。"
         />
       )}
+      <Pager
+        basePath="/browse-teams"
+        searchParams={{ q }}
+        page={result.page}
+        pageSize={result.pageSize}
+        total={result.total}
+      />
     </>
   );
 }
