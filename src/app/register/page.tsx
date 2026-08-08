@@ -10,7 +10,7 @@ export default async function RegisterPage() {
       <PageHeading
         eyebrow="REGISTRATION"
         title={participant ? "编辑报名资料" : "完成参赛报名"}
-        description="报名资料将用于身份核验；只有你主动授权的字段会出现在公开个人池。"
+        description="报名资料将用于身份核验；保存后按你的授权立即公开，管理员会不定期巡查违规内容。"
       />
       <RegistrationForm participant={participant} email={user.email ?? ""} />
     </div>

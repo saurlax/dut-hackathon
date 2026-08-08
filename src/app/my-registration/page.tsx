@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 const auditLabels = {
-  pending: "等待审核",
-  approved: "审核通过",
-  rejected: "审核未通过",
+  pending: "待恢复公开",
+  approved: "已公开可用",
+  rejected: "已被下架",
 } as const;
 
 export default async function MyRegistration() {
@@ -47,7 +47,7 @@ export default async function MyRegistration() {
       <PageHeading
         eyebrow={displayNumber("P", p.participantNumber)}
         title="我的报名"
-        description="资料审核状态和公开设置一目了然。"
+        description="资料公开状态和公开设置一目了然。"
       />
       <Card className="border-primary/15 bg-primary/15">
         <CardContent className="grid gap-px overflow-hidden p-0 sm:grid-cols-2">

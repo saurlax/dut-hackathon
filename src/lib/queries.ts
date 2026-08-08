@@ -450,13 +450,19 @@ export async function adminOverview() {
     confirmationRows,
     submissionRows,
     teamMemberRows,
+    confirmationMemberRows,
     adminRows,
   ] = await Promise.all([
     db.select().from(teams).orderBy(desc(teams.createdAt)),
     db.select().from(participants).orderBy(desc(participants.createdAt)),
     db
-      .select()
+      .select({
+        confirmation: teamConfirmations,
+        teamName: teams.name,
+        teamNumber: teams.teamNumber,
+      })
       .from(teamConfirmations)
+      .innerJoin(teams, eq(teamConfirmations.teamId, teams.id))
       .orderBy(desc(teamConfirmations.createdAt)),
     db.select().from(submissions).orderBy(desc(submissions.createdAt)),
     db
@@ -474,6 +480,10 @@ export async function adminOverview() {
       .from(teamMembers)
       .innerJoin(participants, eq(teamMembers.participantId, participants.id))
       .orderBy(asc(teamMembers.teamId), asc(teamMembers.position)),
+    db
+      .select()
+      .from(confirmationMembers)
+      .orderBy(asc(confirmationMembers.position)),
     db
       .select({
         id: users.id,
@@ -493,6 +503,15 @@ export async function adminOverview() {
     members.push(member);
     membersByTeam.set(member.teamId, members);
   }
+  const membersByConfirmation = new Map<
+    string,
+    (typeof confirmationMemberRows)[number][]
+  >();
+  for (const member of confirmationMemberRows) {
+    const members = membersByConfirmation.get(member.confirmationId) ?? [];
+    members.push(member);
+    membersByConfirmation.set(member.confirmationId, members);
+  }
   return {
     teams: teamRows.map((item) => ({
       ...item,
@@ -503,7 +522,15 @@ export async function adminOverview() {
       ...item,
       number: displayNumber("P", item.participantNumber),
     })),
-    confirmations: confirmationRows,
+    confirmations: confirmationRows.map(
+      ({ confirmation, teamName, teamNumber }) => ({
+        ...confirmation,
+        number: displayNumber("C", confirmation.confirmationNumber),
+        teamNumber: displayNumber("T", teamNumber),
+        teamName,
+        members: membersByConfirmation.get(confirmation.id) ?? [],
+      }),
+    ),
     submissions: submissionRows,
     admins: adminRows,
   };

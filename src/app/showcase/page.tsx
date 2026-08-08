@@ -3,6 +3,7 @@ import { showcase } from "@/lib/queries";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
+import { BackHome } from "@/components/back-home";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default async function ShowcasePage({
@@ -14,6 +15,7 @@ export default async function ShowcasePage({
   const items = await showcase(q);
   return (
     <div className="paper-grain">
+      <BackHome />
       <PageHeading
         eyebrow="SHOWCASE"
         title="黑客松作品展示"

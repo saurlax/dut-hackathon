@@ -10,15 +10,16 @@ test("home and email login are responsive", async ({ page }) => {
 });
 test("public navigation exposes the migrated routes", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "队伍大厅" })).toHaveAttribute(
+  const header = page.locator("header");
+  await expect(header.getByRole("link", { name: "队伍大厅" })).toHaveAttribute(
     "href",
     "/browse-teams",
   );
-  await expect(page.getByRole("link", { name: "找队友" })).toHaveAttribute(
+  await expect(header.getByRole("link", { name: "找队友" })).toHaveAttribute(
     "href",
     "/browse-pool",
   );
-  await expect(page.getByRole("link", { name: "作品展示" })).toHaveAttribute(
+  await expect(header.getByRole("link", { name: "作品展示" })).toHaveAttribute(
     "href",
     "/showcase",
   );

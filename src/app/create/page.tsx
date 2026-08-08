@@ -51,7 +51,7 @@ export default async function CreateTeamPage() {
       <PageHeading
         eyebrow="CREATE TEAM"
         title={owned ? "编辑队伍资料" : "创建一支队伍"}
-        description="清晰的项目方向与公开联系方式，会让合适的伙伴更容易找到你。"
+        description="清晰的项目方向与公开联系方式，会让合适的伙伴更容易找到你；勾选公开后资料会立即展示。"
       />
       <TeamForm
         team={

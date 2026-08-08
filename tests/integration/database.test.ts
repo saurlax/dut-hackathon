@@ -159,6 +159,36 @@ describe("PostgreSQL business constraints", () => {
     expect(result.ok).toBe(true);
     expect(stored.email).toBe("contact@example.com");
   });
+  it("auto-approves registration and allows public display without contact", async () => {
+    const participant = await makeParticipant();
+    authUser.id = participant.userId;
+
+    const result = await saveRegistration(
+      { ok: false, message: "" },
+      actionForm({
+        name: participant.name,
+        phone: participant.phone,
+        email: participant.email,
+        school: participant.school,
+        college: participant.college,
+        grade: participant.grade,
+        studentId: participant.studentId,
+        registrationMethod: "个人报名，正在找队伍",
+        publicDisplay: "on",
+      }),
+    );
+    const [stored] = await db
+      .select()
+      .from(participants)
+      .where(eq(participants.id, participant.id));
+
+    expect(result.ok).toBe(true);
+    expect(stored).toMatchObject({
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicContact: "",
+    });
+  });
   it("uses fail-closed defaults for internal status and team visibility", async () => {
     const leader = await makeParticipant();
     const team = await makeTeam(leader.id);
@@ -376,11 +406,11 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(teams.id, team.id));
 
     expect(result).toMatchObject({ ok: true });
-    expect(result.message).toContain("审核通过");
+    expect(result.message).toContain("公开展示");
     expect(storedTeam).toMatchObject({
       recruitStatus: "recruiting",
       publicDisplay: true,
-      auditStatus: "pending",
+      auditStatus: "approved",
     });
     expect(storedTeam.publicConsentAt).toBeInstanceOf(Date);
   });

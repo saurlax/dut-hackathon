@@ -208,21 +208,42 @@ export async function saveRegistration(
   const user = await requireUser("/register");
   const parsed = participantSchema.safeParse(formDataObject(formData));
   if (!parsed.success) return invalid(parsed.error);
+  const existing = (
+    await db
+      .select({
+        id: participants.id,
+        auditStatus: participants.auditStatus,
+      })
+      .from(participants)
+      .where(eq(participants.userId, user.id))
+      .limit(1)
+  )[0];
+  const auditStatus =
+    existing?.auditStatus === "rejected" ? "pending" : "approved";
   const values = {
     ...parsed.data,
     updatedAt: new Date(),
   };
   await db
     .insert(participants)
-    .values({ ...values, userId: user.id })
+    .values({ ...values, userId: user.id, auditStatus })
     .onConflictDoUpdate({
       target: participants.userId,
-      set: { ...values, auditStatus: "pending", adminNote: "" },
+      set: {
+        ...values,
+        auditStatus,
+        adminNote: "",
+      },
     });
   revalidatePath("/register");
   revalidatePath("/my-registration");
   revalidatePath("/browse-pool");
-  return { ok: true, message: "报名资料已保存" };
+  return {
+    ok: true,
+    message: parsed.data.publicDisplay
+      ? "报名资料已保存，并已按授权公开展示"
+      : "报名资料已保存",
+  };
 }
 
 export async function saveTeam(
@@ -268,7 +289,8 @@ export async function saveTeam(
           .set({
             ...teamValues,
             recruitStatus,
-            auditStatus: "pending",
+            auditStatus:
+              existing.auditStatus === "rejected" ? "pending" : "approved",
             exception: "",
             updatedAt: now,
           })
@@ -300,6 +322,7 @@ export async function saveTeam(
         .insert(teams)
         .values({
           ...teamValues,
+          auditStatus: "approved",
           leaderParticipantId: lockedParticipant.id,
         })
         .returning();
@@ -320,7 +343,7 @@ export async function saveTeam(
   return {
     ok: true,
     message: parsed.data.publicDisplay
-      ? "队伍资料已保存；审核通过且处于招募中时会显示在组队大厅"
+      ? "队伍资料已保存，并已按授权公开展示"
       : "队伍资料已保存；当前未授权公开，不会显示在组队大厅",
   };
 }
@@ -1090,8 +1113,15 @@ export async function updateAudit(
   revalidatePath("/browse-teams");
   revalidatePath("/browse-pool");
   revalidatePath("/showcase");
+  const moderationRecord = kind === "participant" || kind === "team";
   return {
     ok: true,
-    message: decision === "approved" ? "审核已通过" : "已驳回并记录原因",
+    message: moderationRecord
+      ? decision === "approved"
+        ? "已恢复公开"
+        : "已下架并记录原因"
+      : decision === "approved"
+        ? "审核已通过"
+        : "已驳回并记录原因",
   };
 }

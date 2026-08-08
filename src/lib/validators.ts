@@ -21,45 +21,35 @@ export const emailLoginSchema = z.object({
   email: z.string().trim().email("请输入有效邮箱"),
 });
 
-export const participantSchema = z
-  .object({
-    name: required("姓名", 40),
-    phone: required("手机号", 30),
-    email: z.string().trim().email("请输入有效邮箱"),
-    school: required("学校", 100),
-    college: required("学院", 100),
-    grade: required("年级", 30),
-    studentId: required("学号", 50),
-    isInternal: checkbox,
-    skills: stringList,
-    techStack: stringList,
-    desiredRoles: stringList,
-    projectExperience: z.string().trim().max(1000).default(""),
-    bio: z.string().trim().max(500).default(""),
-    portfolioUrl: z
-      .union([z.literal(""), z.string().url("请输入有效链接")])
-      .default(""),
-    availableTime: z.string().trim().max(100).default(""),
-    expectedTracks: stringList,
-    registrationMethod: z.enum([
-      "个人报名，正在找队伍",
-      "已经加入队伍",
-      "个人参赛，不再组队",
-      "暂未确定",
-    ]),
-    teamRole: z.string().trim().max(50).default(""),
-    publicContact: z.string().trim().max(200).default(""),
-    publicDisplay: checkbox,
-  })
-  .superRefine((value, ctx) => {
-    if (value.publicDisplay && !value.publicContact) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["publicContact"],
-        message: "公开展示时必须填写联系方式",
-      });
-    }
-  });
+export const participantSchema = z.object({
+  name: required("姓名", 40),
+  phone: required("手机号", 30),
+  email: z.string().trim().email("请输入有效邮箱"),
+  school: required("学校", 100),
+  college: required("学院", 100),
+  grade: required("年级", 30),
+  studentId: required("学号", 50),
+  isInternal: checkbox,
+  skills: stringList,
+  techStack: stringList,
+  desiredRoles: stringList,
+  projectExperience: z.string().trim().max(1000).default(""),
+  bio: z.string().trim().max(500).default(""),
+  portfolioUrl: z
+    .union([z.literal(""), z.string().url("请输入有效链接")])
+    .default(""),
+  availableTime: z.string().trim().max(100).default(""),
+  expectedTracks: stringList,
+  registrationMethod: z.enum([
+    "个人报名，正在找队伍",
+    "已经加入队伍",
+    "个人参赛，不再组队",
+    "暂未确定",
+  ]),
+  teamRole: z.string().trim().max(50).default(""),
+  publicContact: z.string().trim().max(200).default(""),
+  publicDisplay: checkbox,
+});
 
 export const teamSchema = z.object({
   name: required("队伍名称", 80),
@@ -128,5 +118,16 @@ export const submissionSchema = z.object({
 });
 
 export function formDataObject(formData: FormData) {
-  return Object.fromEntries(formData.entries());
+  const values: Record<string, FormDataEntryValue | FormDataEntryValue[]> = {};
+  for (const [key, value] of formData.entries()) {
+    const existing = values[key];
+    if (existing === undefined) {
+      values[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      values[key] = [existing, value];
+    }
+  }
+  return values;
 }

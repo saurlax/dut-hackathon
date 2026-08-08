@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import type { participants, teams } from "@/db/schema";
+import type {
+  confirmationMembers,
+  participants,
+  teams,
+  teamConfirmations,
+} from "@/db/schema";
 import { displayNumber } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 
@@ -18,6 +23,12 @@ type TeamMemberDetail = {
 type TeamDetail = typeof teams.$inferSelect & {
   number: string;
   members: TeamMemberDetail[];
+};
+type ConfirmationDetail = typeof teamConfirmations.$inferSelect & {
+  number: string;
+  teamNumber: string;
+  teamName: string;
+  members: (typeof confirmationMembers.$inferSelect)[];
 };
 
 const auditLabels = {
@@ -344,6 +355,64 @@ export function TeamRecordDetails({ team }: { team: TeamDetail }) {
             { label: "最后更新", value: dateTime(team.updatedAt) },
           ]}
         />
+      </DetailSection>
+    </div>
+  );
+}
+
+export function ConfirmationRecordDetails({
+  confirmation,
+}: {
+  confirmation: ConfirmationDetail;
+}) {
+  return (
+    <div className="space-y-6">
+      <DetailSection title="最终确认状态">
+        <DetailGrid
+          items={[
+            { label: "确认编号", value: confirmation.number },
+            { label: "队伍编号", value: confirmation.teamNumber },
+            { label: "队伍名称", value: confirmation.teamName },
+            {
+              label: "审核状态",
+              value: (
+                <StatusBadge>
+                  {auditLabels[confirmation.auditStatus]}
+                </StatusBadge>
+              ),
+            },
+            { label: "提交时间", value: dateTime(confirmation.createdAt) },
+            { label: "最后更新", value: dateTime(confirmation.updatedAt) },
+            {
+              label: "异常说明",
+              value: text(confirmation.exception),
+              wide: true,
+            },
+          ]}
+        />
+      </DetailSection>
+      <DetailSection title="成员快照">
+        {confirmation.members.length ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {confirmation.members.map((member) => (
+              <div
+                key={member.participantId}
+                className="rounded-lg border border-primary/15 bg-white/85 p-3"
+              >
+                <p className="font-semibold">
+                  {displayNumber("P", member.participantNumber)} · {member.name}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  位置 {member.position} · {member.role}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            暂无成员快照。
+          </p>
+        )}
       </DetailSection>
     </div>
   );

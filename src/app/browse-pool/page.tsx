@@ -3,6 +3,7 @@ import { displayNumber } from "@/lib/domain";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
+import { BackHome } from "@/components/back-home";
 import { Card } from "@/components/ui/card";
 
 export default async function PoolPage({
@@ -14,10 +15,11 @@ export default async function PoolPage({
   const items = await publicParticipants(q);
   return (
     <>
+      <BackHome />
       <PageHeading
         eyebrow="TALENT POOL"
         title="发现想加入项目的伙伴"
-        description="公开资料均由参赛者授权展示；联系时请尊重对方隐私。"
+        description="公开资料由参赛者授权后立即展示；管理员会不定期巡查，联系时请尊重对方隐私。"
       />
       <SearchBar defaultValue={q} placeholder="搜索姓名或个人简介" />
       {/* ── Section banner (always shown, even at 0 people) ───────── */}
