@@ -1,4 +1,6 @@
 import { Inbox } from "lucide-react";
+import { Reveal } from "@/components/animation/reveal";
+
 export function EmptyState({
   title,
   description,
@@ -7,7 +9,7 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <div className="paper-grain rounded-xl border border-dashed border-primary/25 bg-white/60 px-6 py-16 text-center shadow-xs">
+    <Reveal className="paper-grain rounded-xl border border-dashed border-primary/25 bg-white/60 px-6 py-16 text-center shadow-xs">
       <span className="mx-auto grid size-12 place-items-center rounded-lg bg-secondary text-primary ring-1 ring-inset ring-primary/15">
         <Inbox className="size-6" />
       </span>
@@ -16,6 +18,6 @@ export function EmptyState({
       <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">
         {description}
       </p>
-    </div>
+    </Reveal>
   );
 }

@@ -14,9 +14,15 @@ export function LogoutButton() {
         startTransition(() => logout());
       }}
     >
-      <button className="w-full" disabled={pending}>
+      <button
+        data-slot="button"
+        data-pending={pending || undefined}
+        aria-busy={pending || undefined}
+        className="w-full"
+        disabled={pending}
+      >
         <LogOut />
-        {pending ? "退出中…" : "退出登录"}
+        退出登录
       </button>
     </form>
   );

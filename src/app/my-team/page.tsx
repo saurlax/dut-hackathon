@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import {
   applicationsForLeader,
   applicationsForUser,
@@ -17,6 +17,7 @@ import { LeaderForm } from "@/components/forms/leader-form";
 import { MembershipActions } from "@/components/membership-actions";
 import { ReceivedApplicationCard } from "@/components/received-application-card";
 import { RecruitmentControl } from "@/components/recruitment-control";
+import { Reveal } from "@/components/animation/reveal";
 
 const recruitmentLabels = {
   recruiting: "招募中",
@@ -75,110 +76,112 @@ export default async function MyTeamPage() {
         description="队长通过申请审批添加成员；成员可以确认历史关系或随时退出未锁定的队伍。"
       />
       {current ? (
-        <Card className="mb-8 border-primary/20">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="eyebrow mb-2 text-primary">CURRENT TEAM</p>
-                <Badge variant="outline" className="nums">
-                  {displayNumber("T", current.team.teamNumber)}
-                </Badge>
-                <CardTitle className="mt-3 text-2xl">
-                  {current.team.name}
-                </CardTitle>
+        <Reveal>
+          <Card className="mb-8 border-primary/20">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="eyebrow mb-2 text-primary">CURRENT TEAM</p>
+                  <Badge variant="outline" className="nums">
+                    {displayNumber("T", current.team.teamNumber)}
+                  </Badge>
+                  <CardTitle className="mt-3 text-2xl">
+                    {current.team.name}
+                  </CardTitle>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      current.team.recruitStatus === "recruiting"
+                        ? "border-success/25 bg-success/10 text-success"
+                        : "border-warning/25 bg-warning/10 text-warning"
+                    }
+                  >
+                    {recruitmentLabels[current.team.recruitStatus]}
+                  </Badge>
+                  <Badge variant="outline">
+                    {auditLabels[current.team.auditStatus]}
+                  </Badge>
+                  <Badge variant="outline">
+                    {current.team.publicDisplay && current.team.publicConsentAt
+                      ? "已授权公开"
+                      : "未公开"}
+                  </Badge>
+                </div>
               </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Badge
-                  variant="outline"
-                  className={
-                    current.team.recruitStatus === "recruiting"
-                      ? "border-success/25 bg-success/10 text-success"
-                      : "border-warning/25 bg-warning/10 text-warning"
-                  }
+            </CardHeader>
+            <CardContent>
+              {hallStatus && (
+                <div
+                  role="status"
+                  className={`mb-5 rounded-lg border p-3 text-sm ${
+                    hallStatus.visible
+                      ? "border-success/20 bg-success/10 text-success"
+                      : "border-warning/20 bg-warning/10 text-warning"
+                  }`}
                 >
-                  {recruitmentLabels[current.team.recruitStatus]}
-                </Badge>
-                <Badge variant="outline">
-                  {auditLabels[current.team.auditStatus]}
-                </Badge>
-                <Badge variant="outline">
-                  {current.team.publicDisplay && current.team.publicConsentAt
-                    ? "已授权公开"
-                    : "未公开"}
-                </Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {hallStatus && (
-              <div
-                role="status"
-                className={`mb-5 rounded-lg border p-3 text-sm ${
-                  hallStatus.visible
-                    ? "border-success/20 bg-success/10 text-success"
-                    : "border-warning/20 bg-warning/10 text-warning"
-                }`}
-              >
-                {hallStatus.message}
-              </div>
-            )}
-            {current.team.auditStatus === "rejected" &&
-              current.team.exception && (
-                <div className="mb-5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-                  <span className="font-semibold">已被下架：</span>
-                  {current.team.exception}
+                  {hallStatus.message}
                 </div>
               )}
-            <div className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
-              {current.members.map(({ participant, role, consentedAt }) => (
-                <div key={participant.id} className="bg-white/85 p-4 text-sm">
-                  {participant.name}
-                  <span className="label-mono float-right text-[10px] text-muted-foreground">
-                    {consentedAt ? role : "待本人确认"}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {owned ? (
-              <>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Button asChild>
-                    <Link href="/create">编辑队伍</Link>
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <Link href="/final-confirmation">最终确认</Link>
-                  </Button>
-                  <RecruitmentControl
-                    status={current.team.recruitStatus}
-                    canResume={
-                      isRecruitmentOpen(current.team.recruitmentDeadline) &&
-                      current.members.length < current.team.maxSize
-                    }
-                  />
-                </div>
-                {owned.members.filter(({ consentedAt }) => consentedAt).length >
-                  1 && (
-                  <div className="mt-6 border-t pt-5">
-                    <LeaderForm />
+              {current.team.auditStatus === "rejected" &&
+                current.team.exception && (
+                  <div className="mb-5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                    <span className="font-semibold">已被下架：</span>
+                    {current.team.exception}
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="mt-5 border-t border-primary/10 pt-5">
-                <MembershipActions
-                  confirmed={Boolean(current.membership.consentedAt)}
-                />
+              <div className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
+                {current.members.map(({ participant, role, consentedAt }) => (
+                  <div key={participant.id} className="bg-white/85 p-4 text-sm">
+                    {participant.name}
+                    <span className="label-mono float-right text-[10px] text-muted-foreground">
+                      {consentedAt ? role : "待本人确认"}
+                    </span>
+                  </div>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {owned ? (
+                <>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button asChild>
+                      <Link href="/create">编辑队伍</Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link href="/final-confirmation">最终确认</Link>
+                    </Button>
+                    <RecruitmentControl
+                      status={current.team.recruitStatus}
+                      canResume={
+                        isRecruitmentOpen(current.team.recruitmentDeadline) &&
+                        current.members.length < current.team.maxSize
+                      }
+                    />
+                  </div>
+                  {owned.members.filter(({ consentedAt }) => consentedAt)
+                    .length > 1 && (
+                    <div className="mt-6 border-t pt-5">
+                      <LeaderForm />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="mt-5 border-t border-primary/10 pt-5">
+                  <MembershipActions
+                    confirmed={Boolean(current.membership.consentedAt)}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </Reveal>
       ) : (
         <EmptyState
           title="你还没有加入队伍"
           description="你可以创建队伍，或从队伍大厅申请加入。"
         />
       )}
-      <section className="mt-10 border-t border-primary/15 pt-8">
+      <Reveal className="mt-10 border-t border-primary/15 pt-8">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-xl font-semibold">我提交的申请</h2>
           <span className="label-mono text-[10px] text-muted-foreground">
@@ -212,9 +215,9 @@ export default async function MyTeamPage() {
             <p className="text-sm text-muted-foreground">暂无申请。</p>
           )}
         </div>
-      </section>
+      </Reveal>
       {owned && (
-        <section className="mt-10 border-t border-primary/15 pt-8">
+        <Reveal className="mt-10 border-t border-primary/15 pt-8">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="font-display text-xl font-semibold">收到的申请</h2>
             <span className="label-mono text-[10px] text-muted-foreground">
@@ -234,7 +237,7 @@ export default async function MyTeamPage() {
               <p className="text-sm text-muted-foreground">暂无申请。</p>
             )}
           </div>
-        </section>
+        </Reveal>
       )}
     </>
   );

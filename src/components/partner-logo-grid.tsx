@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Reveal } from "@/components/animation/reveal";
 
 interface PartnerLogo {
   name: string;
@@ -87,7 +88,7 @@ export function PartnerLogoGrid() {
       className="border-t border-primary/15 py-10 md:py-12"
       aria-labelledby="partners-heading"
     >
-      <div className="mb-6 flex items-baseline justify-between gap-4">
+      <Reveal className="mb-6 flex items-baseline justify-between gap-4">
         <h2
           id="partners-heading"
           className="flex items-center gap-3 font-display text-xl font-extrabold tracking-tight"
@@ -98,9 +99,12 @@ export function PartnerLogoGrid() {
           </span>
         </h2>
         <span className="label-mono text-[11px] text-muted-foreground">10</span>
-      </div>
+      </Reveal>
 
-      <div className="relative overflow-hidden rounded-lg border border-primary/20 bg-[image:var(--field-gradient)] px-3 py-5 shadow-sm sm:px-5 sm:py-6">
+      <Reveal
+        className="relative overflow-hidden rounded-lg border border-primary/20 bg-[image:var(--field-gradient)] px-3 py-5 shadow-sm sm:px-5 sm:py-6"
+        delay={0.05}
+      >
         <span
           aria-hidden="true"
           className="paper-grain pointer-events-none absolute inset-0 opacity-50"
@@ -109,9 +113,9 @@ export function PartnerLogoGrid() {
           {partnerLogos.map((logo) => (
             <li
               key={logo.name}
-              className="flex h-24 items-center justify-center px-2 sm:h-28 sm:px-3"
+              className="group flex h-24 items-center justify-center px-2 transition-transform duration-200 hover:-translate-y-0.5 sm:h-28 sm:px-3"
             >
-              <div className="flex h-16 w-full items-center justify-center sm:h-[4.5rem]">
+              <div className="flex h-16 w-full items-center justify-center transition-transform duration-200 group-hover:scale-[1.03] sm:h-[4.5rem]">
                 <Image
                   src={logo.src}
                   alt={`${logo.name}标志`}
@@ -124,7 +128,7 @@ export function PartnerLogoGrid() {
             </li>
           ))}
         </ul>
-      </div>
+      </Reveal>
     </section>
   );
 }

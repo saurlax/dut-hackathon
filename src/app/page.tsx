@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PartnerLogoGrid } from "@/components/partner-logo-grid";
+import { Reveal } from "@/components/animation/reveal";
 
 const processSteps = [
   "每位参赛者独立完成报名",
@@ -93,7 +94,7 @@ export default function Home() {
           S2
         </span>
 
-        <div className="relative z-10 max-w-2xl">
+        <Reveal className="relative z-10 max-w-2xl" y={18}>
           <div className="mb-5 flex flex-wrap items-center gap-3">
             <span className="tech-kicker brand-text text-[11px]">
               THINK · BUILD · UPDATE
@@ -139,9 +140,13 @@ export default function Home() {
               </Link>
             </Button>
           </div>
-        </div>
+        </Reveal>
 
-        <div className="relative z-10 mt-10 flex justify-center md:mt-0 md:justify-end">
+        <Reveal
+          className="relative z-10 mt-10 flex justify-center md:mt-0 md:justify-end"
+          delay={0.1}
+          y={16}
+        >
           <div className="signal-arc">
             <Image
               src="/brand/dut-hackathon-s2.png"
@@ -154,12 +159,12 @@ export default function Home() {
               className="absolute left-1/2 top-0 h-auto w-[66%] -translate-x-1/2 bg-transparent object-contain [filter:drop-shadow(0_12px_18px_rgba(34,61,233,0.18))]"
             />
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <section className="border-b border-primary/15 py-10 md:py-12">
         <SectionHeading title="组队流程" english="HOW IT WORKS" count="06" />
-        <ol className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
+        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
           {processSteps.map((label, index) => (
             <li
               key={label}
@@ -173,43 +178,51 @@ export default function Home() {
               </span>
             </li>
           ))}
-        </ol>
+        </Reveal>
       </section>
 
       <section className="py-10 md:py-12">
         <SectionHeading title="功能入口" english="ENTER" count="06" />
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
-          {entries.map(({ icon: Icon, ...entry }) => (
-            <Link
+          {entries.map(({ icon: Icon, ...entry }, index) => (
+            <Reveal
               key={entry.href}
-              href={entry.href}
-              className="group relative flex flex-col bg-white/90 p-6 transition-colors duration-200 hover:bg-secondary/80"
+              className="h-full"
+              delay={Math.min(index * 0.05, 0.2)}
             >
-              <span className="brand-gradient absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 transition-transform duration-200 group-hover:scale-x-100" />
-              <div className="mb-6 flex items-start justify-between">
-                <span className="label-mono text-xs font-bold text-muted-foreground transition-colors group-hover:text-primary">
-                  {entry.index}
-                </span>
-                <Icon className="size-5 text-foreground transition-all duration-200 group-hover:-translate-y-0.5 group-hover:text-primary" />
-              </div>
-              <h3 className="font-display text-lg font-bold tracking-tight">
-                {entry.title}
-              </h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                {entry.description}
-              </p>
-              <div className="mt-5 flex items-center gap-1 text-xs">
-                <span className="label-mono text-muted-foreground transition-colors group-hover:text-primary">
-                  {entry.status}
-                </span>
-                <ArrowUpRight className="size-3.5 text-muted-foreground transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
-              </div>
-            </Link>
+              <Link
+                href={entry.href}
+                className="group relative flex h-full flex-col bg-white/90 p-6 transition-colors duration-200 hover:bg-secondary/80"
+              >
+                <span className="brand-gradient absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 transition-transform duration-200 group-hover:scale-x-100" />
+                <div className="mb-6 flex items-start justify-between">
+                  <span className="label-mono text-xs font-bold text-muted-foreground transition-colors group-hover:text-primary">
+                    {entry.index}
+                  </span>
+                  <Icon className="size-5 text-foreground transition-all duration-200 group-hover:-translate-y-0.5 group-hover:text-primary" />
+                </div>
+                <h3 className="font-display text-lg font-bold tracking-tight">
+                  {entry.title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  {entry.description}
+                </p>
+                <div className="mt-5 flex items-center gap-1 text-xs">
+                  <span className="label-mono text-muted-foreground transition-colors group-hover:text-primary">
+                    {entry.status}
+                  </span>
+                  <ArrowUpRight className="size-3.5 text-muted-foreground transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
+                </div>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-6 pb-6 lg:grid-cols-3">
+      <Reveal
+        className="grid grid-cols-1 gap-6 pb-6 lg:grid-cols-3"
+        delay={0.05}
+      >
         <Card className="flex flex-col justify-between border-foreground/20 p-6 lg:col-span-1">
           <div>
             <span className="label-mono text-[11px] text-muted-foreground">
@@ -255,7 +268,7 @@ export default function Home() {
             ))}
           </ul>
         </Card>
-      </section>
+      </Reveal>
 
       <PartnerLogoGrid />
     </div>

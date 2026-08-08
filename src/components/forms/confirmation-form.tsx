@@ -20,8 +20,8 @@ export function ConfirmationForm({
         label="我确认全体成员信息无误，并已取得成员同意"
       />
       <FormMessage state={state} />
-      <Button size="lg" disabled={pending}>
-        {pending ? "提交中…" : resubmission ? "重新提交审核" : "提交最终确认"}
+      <Button size="lg" pending={pending}>
+        {resubmission ? "重新提交审核" : "提交最终确认"}
       </Button>
     </form>
   );

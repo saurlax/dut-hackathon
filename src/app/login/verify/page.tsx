@@ -1,9 +1,10 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/animation/reveal";
 export default function VerifyPage() {
   return (
-    <div className="paper-grain mx-auto max-w-lg rounded-xl border border-primary/20 bg-white/70 px-6 py-16 text-center shadow-sm md:my-12">
+    <Reveal className="paper-grain mx-auto max-w-lg rounded-xl border border-primary/20 bg-white/70 px-6 py-16 text-center shadow-sm md:my-12">
       <span className="mx-auto grid size-14 place-items-center rounded-lg bg-secondary text-primary ring-1 ring-inset ring-primary/15">
         <MailCheck className="size-7" />
       </span>
@@ -15,6 +16,6 @@ export default function VerifyPage() {
       <Button className="mt-8" variant="outline" asChild>
         <Link href="/">返回首页</Link>
       </Button>
-    </div>
+    </Reveal>
   );
 }

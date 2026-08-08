@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/animation/reveal";
 
 export default function ErrorPage({
   error,
@@ -15,7 +16,7 @@ export default function ErrorPage({
   }, [error]);
 
   return (
-    <div className="tech-frame py-28 text-center">
+    <Reveal className="tech-frame py-28 text-center">
       <p className="eyebrow text-primary">ERROR</p>
       <h1 className="mt-3 text-4xl font-extrabold">页面暂时不可用</h1>
       <p className="mt-3 text-muted-foreground">
@@ -24,6 +25,6 @@ export default function ErrorPage({
       <Button className="mt-7" onClick={retry}>
         重试
       </Button>
-    </div>
+    </Reveal>
   );
 }

@@ -20,7 +20,7 @@ export function LeaderForm() {
         placeholder="P0002"
         required
       />
-      <Button disabled={pending}>{pending ? "转让中…" : "转让队长"}</Button>
+      <Button pending={pending}>转让队长</Button>
       <FormMessage state={state} />
     </form>
   );

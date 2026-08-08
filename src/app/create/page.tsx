@@ -3,8 +3,9 @@ import { participantForUser, teamForLeader, teamForUser } from "@/lib/queries";
 import { PageHeading } from "@/components/page-heading";
 import { TeamForm } from "@/components/forms/team-form";
 import { EmptyState } from "@/components/empty-state";
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/animation/reveal";
 export default async function CreateTeamPage() {
   const user = await requireUser("/create");
   const [participant, owned, current] = await Promise.all([
@@ -53,28 +54,30 @@ export default async function CreateTeamPage() {
         title={owned ? "编辑队伍资料" : "创建一支队伍"}
         description="清晰的项目方向与公开联系方式，会让合适的伙伴更容易找到你；勾选公开后资料会立即展示。"
       />
-      <TeamForm
-        team={
-          owned
-            ? {
-                name: owned.team.name,
-                projectDirection: owned.team.projectDirection,
-                track: owned.team.track,
-                maturity: owned.team.maturity,
-                techStack: owned.team.techStack,
-                capabilities: owned.team.capabilities,
-                requiredRoles: owned.team.requiredRoles,
-                contact: owned.team.contact,
-                recruitmentDeadline: owned.team.recruitmentDeadline,
-                maxSize: owned.team.maxSize,
-                description: owned.team.description,
-                requirements: owned.team.requirements,
-                allowExternal: owned.team.allowExternal,
-                publicDisplay: owned.team.publicDisplay,
-              }
-            : null
-        }
-      />
+      <Reveal>
+        <TeamForm
+          team={
+            owned
+              ? {
+                  name: owned.team.name,
+                  projectDirection: owned.team.projectDirection,
+                  track: owned.team.track,
+                  maturity: owned.team.maturity,
+                  techStack: owned.team.techStack,
+                  capabilities: owned.team.capabilities,
+                  requiredRoles: owned.team.requiredRoles,
+                  contact: owned.team.contact,
+                  recruitmentDeadline: owned.team.recruitmentDeadline,
+                  maxSize: owned.team.maxSize,
+                  description: owned.team.description,
+                  requirements: owned.team.requirements,
+                  allowExternal: owned.team.allowExternal,
+                  publicDisplay: owned.team.publicDisplay,
+                }
+              : null
+          }
+        />
+      </Reveal>
     </div>
   );
 }

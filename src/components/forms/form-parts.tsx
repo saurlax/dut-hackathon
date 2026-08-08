@@ -133,7 +133,7 @@ export function FormMessage({
   return (
     <div
       role="status"
-      className={`rounded-lg border p-3 text-sm ${state.ok ? "border-success/20 bg-success/10 text-success" : "border-destructive/20 bg-destructive/10 text-destructive"}`}
+      className={`status-in rounded-lg border p-3 text-sm ${state.ok ? "border-success/20 bg-success/10 text-success" : "border-destructive/20 bg-destructive/10 text-destructive"}`}
     >
       <p>{state.message}</p>
       {state.fieldErrors && (

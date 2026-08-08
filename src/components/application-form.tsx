@@ -25,14 +25,12 @@ export function ApplicationForm({ teamId }: { teamId: string }) {
       </p>
       {state.message && (
         <p
-          className={
-            state.ok ? "text-sm text-success" : "text-sm text-destructive"
-          }
+          className={`status-in text-sm ${state.ok ? "text-success" : "text-destructive"}`}
         >
           {state.message}
         </p>
       )}
-      <Button disabled={pending}>{pending ? "提交中…" : "申请加入"}</Button>
+      <Button pending={pending}>申请加入</Button>
     </form>
   );
 }

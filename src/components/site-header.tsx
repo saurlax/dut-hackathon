@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { auth } from "@/auth";
 import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";

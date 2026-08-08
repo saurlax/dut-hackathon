@@ -59,8 +59,8 @@ function PauseRecruitment() {
                   取消
                 </Button>
               </DialogClose>
-              <Button type="submit" variant="destructive" disabled={pending}>
-                {pending ? "处理中…" : "确认暂停"}
+              <Button type="submit" variant="destructive" pending={pending}>
+                确认暂停
               </Button>
             </DialogFooter>
           </form>
@@ -88,8 +88,8 @@ function ResumeRecruitment({ enabled }: { enabled: boolean }) {
   return (
     <div className="space-y-2">
       <form action={action}>
-        <Button type="submit" variant="outline" disabled={pending}>
-          {pending ? "处理中…" : "恢复招募"}
+        <Button type="submit" variant="outline" pending={pending}>
+          恢复招募
         </Button>
       </form>
       <FormMessage state={state} />

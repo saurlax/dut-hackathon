@@ -52,15 +52,13 @@ export function AuthForm({ callbackUrl }: { callbackUrl: string }) {
       {state.message && (
         <p
           role="status"
-          className={
-            state.ok ? "text-sm text-success" : "text-sm text-destructive"
-          }
+          className={`status-in text-sm ${state.ok ? "text-success" : "text-destructive"}`}
         >
           {state.message}
         </p>
       )}
-      <Button className="w-full" disabled={pending || transitioning}>
-        {pending || transitioning ? "正在发送…" : "发送登录链接"}
+      <Button className="w-full" pending={pending || transitioning}>
+        发送登录链接
       </Button>
     </form>
   );
