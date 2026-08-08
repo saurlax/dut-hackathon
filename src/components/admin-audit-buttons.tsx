@@ -19,23 +19,47 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 type AuditKind = "participant" | "team" | "confirmation" | "submission";
+type AuditStatus = "pending" | "approved" | "rejected";
 
 export function AdminAuditButtons({
   kind,
   id,
+  status,
+  revision,
 }: {
   kind: AuditKind;
   id: string;
+  status: AuditStatus;
+  revision: number;
 }) {
   return (
     <div className="flex flex-wrap gap-1">
-      <ApproveButton kind={kind} id={id} />
-      <RejectDialog kind={kind} id={id} />
+      {status !== "approved" && (
+        <ApproveButton
+          kind={kind}
+          id={id}
+          status={status}
+          revision={revision}
+        />
+      )}
+      {status !== "rejected" && (
+        <RejectDialog kind={kind} id={id} status={status} revision={revision} />
+      )}
     </div>
   );
 }
 
-function ApproveButton({ kind, id }: { kind: AuditKind; id: string }) {
+function ApproveButton({
+  kind,
+  id,
+  status,
+  revision,
+}: {
+  kind: AuditKind;
+  id: string;
+  status: AuditStatus;
+  revision: number;
+}) {
   const boundAction = updateAudit.bind(null, kind, id);
   const moderationRecord = kind === "participant" || kind === "team";
   const [state, action, pending] = useActionState(
@@ -47,6 +71,8 @@ function ApproveButton({ kind, id }: { kind: AuditKind; id: string }) {
     <div className="space-y-2">
       <form action={action}>
         <input type="hidden" name="decision" value="approved" />
+        <input type="hidden" name="expectedStatus" value={status} />
+        <input type="hidden" name="expectedRevision" value={revision} />
         <Button size="sm" variant="outline" pending={pending}>
           {moderationRecord ? "恢复公开" : "通过"}
         </Button>
@@ -56,7 +82,17 @@ function ApproveButton({ kind, id }: { kind: AuditKind; id: string }) {
   );
 }
 
-function RejectDialog({ kind, id }: { kind: AuditKind; id: string }) {
+function RejectDialog({
+  kind,
+  id,
+  status,
+  revision,
+}: {
+  kind: AuditKind;
+  id: string;
+  status: AuditStatus;
+  revision: number;
+}) {
   const boundAction = updateAudit.bind(null, kind, id);
   const moderationRecord = kind === "participant" || kind === "team";
   const [state, action, pending] = useActionState(
@@ -84,6 +120,8 @@ function RejectDialog({ kind, id }: { kind: AuditKind; id: string }) {
         </DialogHeader>
         <form action={action} className="space-y-4">
           <input type="hidden" name="decision" value="rejected" />
+          <input type="hidden" name="expectedStatus" value={status} />
+          <input type="hidden" name="expectedRevision" value={revision} />
           <div className="space-y-2">
             <Label htmlFor={`audit-reason-${id}`}>
               {moderationRecord ? "下架原因" : "驳回原因"}

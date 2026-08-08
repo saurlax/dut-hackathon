@@ -213,7 +213,7 @@ export default async function TeamsPage({
       )}
       <Pager
         basePath="/browse-teams"
-        searchParams={{ q }}
+        searchParams={{ q, pageSize: String(result.pageSize) }}
         page={result.page}
         pageSize={result.pageSize}
         total={result.total}

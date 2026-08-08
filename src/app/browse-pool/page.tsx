@@ -141,7 +141,7 @@ export default async function PoolPage({
       )}
       <Pager
         basePath="/browse-pool"
-        searchParams={{ q }}
+        searchParams={{ q, pageSize: String(result.pageSize) }}
         page={result.page}
         pageSize={result.pageSize}
         total={result.total}

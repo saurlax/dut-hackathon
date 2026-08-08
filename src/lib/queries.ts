@@ -130,7 +130,10 @@ export async function publicParticipants(
       .from(participants)
       .leftJoin(teamMembers, eq(teamMembers.participantId, participants.id))
       .where(where)
-      .orderBy(desc(participants.updatedAt))
+      .orderBy(
+        desc(participants.updatedAt),
+        desc(participants.participantNumber),
+      )
       .limit(ps)
       .offset((p - 1) * ps),
     db
@@ -160,7 +163,6 @@ export async function publicTeams(
       value: count(teamMembers.participantId).as("member_count"),
     })
     .from(teamMembers)
-    .where(isNotNull(teamMembers.consentedAt))
     .groupBy(teamMembers.teamId)
     .as("team_size");
   const where = and(
@@ -194,7 +196,7 @@ export async function publicTeams(
       )
       .leftJoin(size, eq(teams.id, size.teamId))
       .where(where)
-      .orderBy(desc(teams.updatedAt))
+      .orderBy(desc(teams.updatedAt), desc(teams.teamNumber))
       .limit(ps)
       .offset((p - 1) * ps),
     db.select({ value: count() }).from(teams).where(where),
@@ -252,9 +254,7 @@ export async function publicTeamDetail(id: string) {
     db
       .select({ value: count() })
       .from(teamMembers)
-      .where(
-        and(eq(teamMembers.teamId, id), isNotNull(teamMembers.consentedAt)),
-      ),
+      .where(eq(teamMembers.teamId, id)),
   ]);
   return {
     ...team,
@@ -454,6 +454,7 @@ export async function showcase(
   const ps = parsePageSize(pageSize);
   const where = and(
     eq(submissions.auditStatus, "approved"),
+    eq(submissions.materialStatus, "complete"),
     eq(submissions.publicDisplay, true),
     isNotNull(submissions.publicConsentAt),
     eq(teamConfirmations.auditStatus, "approved"),
@@ -477,7 +478,7 @@ export async function showcase(
       .innerJoin(teams, eq(submissions.teamId, teams.id))
       .innerJoin(teamConfirmations, eq(teamConfirmations.teamId, teams.id))
       .where(where)
-      .orderBy(desc(submissions.updatedAt))
+      .orderBy(desc(submissions.updatedAt), desc(submissions.submissionNumber))
       .limit(ps)
       .offset((p - 1) * ps),
     db
@@ -507,6 +508,7 @@ export async function publicSubmissionDetail(id: string) {
           and(
             eq(submissions.id, id),
             eq(submissions.auditStatus, "approved"),
+            eq(submissions.materialStatus, "complete"),
             eq(submissions.publicDisplay, true),
             isNotNull(submissions.publicConsentAt),
             eq(teamConfirmations.auditStatus, "approved"),

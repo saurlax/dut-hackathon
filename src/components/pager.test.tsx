@@ -33,11 +33,11 @@ describe("Pager", () => {
     );
     expect(container.innerHTML).toBe("");
   });
-  it("links prev/next and preserves the keyword across pages", () => {
+  it("links prev/next and preserves the keyword and page size", () => {
     render(
       <Pager
         basePath="/browse-teams"
-        searchParams={{ q: "ai" }}
+        searchParams={{ q: "ai", pageSize: "12" }}
         page={2}
         pageSize={12}
         total={30}
@@ -45,11 +45,11 @@ describe("Pager", () => {
     );
     expect(screen.getByRole("link", { name: /上一页/ })).toHaveAttribute(
       "href",
-      "/browse-teams?q=ai&page=1",
+      "/browse-teams?q=ai&pageSize=12&page=1",
     );
     expect(screen.getByRole("link", { name: /下一页/ })).toHaveAttribute(
       "href",
-      "/browse-teams?q=ai&page=3",
+      "/browse-teams?q=ai&pageSize=12&page=3",
     );
     expect(screen.getByText(/第 2 \/ 3 页/)).toBeInTheDocument();
   });

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type {
   confirmationMembers,
   participants,
+  submissions,
   teams,
   teamConfirmations,
 } from "@/db/schema";
@@ -30,6 +31,7 @@ type ConfirmationDetail = typeof teamConfirmations.$inferSelect & {
   teamName: string;
   members: (typeof confirmationMembers.$inferSelect)[];
 };
+type SubmissionDetail = typeof submissions.$inferSelect;
 
 const auditLabels = {
   pending: "等待审核",
@@ -43,6 +45,24 @@ const recruitmentLabels = {
   full: "已满员",
   completed: "已完成组队",
 } as const;
+
+const materialLabels = {
+  pending: "材料待检查",
+  complete: "材料完整",
+  incomplete: "材料不完整",
+} as const;
+
+const submissionLinkLabels: Record<string, string> = {
+  githubUrl: "代码仓库",
+  demoUrl: "在线演示",
+  demoVideo: "演示视频",
+  datasetUrl: "数据集或模型",
+  pptUrl: "项目 PPT",
+  docsUrl: "说明文档",
+  packageUrl: "安装包",
+  coverUrl: "项目封面",
+  supplementaryUrl: "补充附件",
+};
 
 const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "medium",
@@ -409,6 +429,133 @@ export function ConfirmationRecordDetails({
             暂无成员快照。
           </p>
         )}
+      </DetailSection>
+    </div>
+  );
+}
+
+export function SubmissionRecordDetails({
+  submission,
+}: {
+  submission: SubmissionDetail;
+}) {
+  const links = Object.entries(submission.links).filter(([, value]) => value);
+  return (
+    <div className="space-y-6">
+      <DetailSection title="作品概况">
+        <DetailGrid
+          items={[
+            {
+              label: "作品编号",
+              value: displayNumber("S", submission.submissionNumber),
+            },
+            { label: "作品名称", value: submission.projectName },
+            { label: "所属赛道", value: submission.track },
+            { label: "队伍 ID", value: submission.teamId },
+            { label: "提交人 ID", value: submission.submittedById },
+            {
+              label: "一句话介绍",
+              value: submission.oneLiner,
+              wide: true,
+            },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="项目说明">
+        <DetailGrid
+          items={[
+            { label: "项目背景", value: submission.background, wide: true },
+            {
+              label: "解决的问题",
+              value: submission.problemSolved,
+              wide: true,
+            },
+            {
+              label: "核心功能",
+              value: submission.coreFeatures,
+              wide: true,
+            },
+            {
+              label: "技术方案",
+              value: submission.techApproach,
+              wide: true,
+            },
+            { label: "创新点", value: submission.innovation, wide: true },
+            {
+              label: "应用价值",
+              value: submission.applicationValue,
+              wide: true,
+            },
+            {
+              label: "使用说明",
+              value: submission.usageGuide,
+              wide: true,
+            },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="材料链接">
+        {links.length ? (
+          <DetailGrid
+            items={links.map(([key, value]) => ({
+              label: submissionLinkLabels[key] ?? key,
+              value: isSafeHttpUrl(value) ? (
+                <a
+                  href={value}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all text-primary underline underline-offset-2"
+                >
+                  {value}
+                </a>
+              ) : (
+                "链接格式无效"
+              ),
+              wide: true,
+            }))}
+          />
+        ) : (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            未提交材料链接。
+          </p>
+        )}
+      </DetailSection>
+
+      <DetailSection title="公开与审核">
+        <DetailGrid
+          items={[
+            {
+              label: "公开展示",
+              value:
+                submission.publicDisplay && submission.publicConsentAt
+                  ? "已授权公开"
+                  : "未授权公开",
+            },
+            {
+              label: "材料状态",
+              value: (
+                <StatusBadge>
+                  {materialLabels[submission.materialStatus]}
+                </StatusBadge>
+              ),
+            },
+            {
+              label: "审核状态",
+              value: (
+                <StatusBadge>{auditLabels[submission.auditStatus]}</StatusBadge>
+              ),
+            },
+            {
+              label: "审核说明",
+              value: text(submission.adminNote),
+              wide: true,
+            },
+            { label: "提交时间", value: dateTime(submission.createdAt) },
+            { label: "最后更新", value: dateTime(submission.updatedAt) },
+          ]}
+        />
       </DetailSection>
     </div>
   );

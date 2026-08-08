@@ -1,7 +1,8 @@
 "use server";
 
-import { and, count, eq, gt, ne } from "drizzle-orm";
+import { and, count, eq, gt, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
@@ -18,10 +19,14 @@ import {
   verificationTokens,
 } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/authz";
-import { adminEmails } from "@/lib/env";
+import { resolveEmailRateLimitIp } from "@/lib/client-ip";
+import { adminEmails, getServerEnv } from "@/lib/env";
 import type { ActionState } from "@/lib/domain";
 import { isRecruitmentOpen, normalizeLoginEmail } from "@/lib/domain";
-import { EmailRateLimitError } from "@/lib/email-rate-limit";
+import {
+  consumeMagicLinkIpRateLimit,
+  isEmailRateLimitError,
+} from "@/lib/email-rate-limit";
 import {
   applicationSchema,
   auditDecisionSchema,
@@ -187,6 +192,19 @@ export async function requestMagicLink(
   const email = normalizeLoginEmail(String(formData.get("email") ?? ""));
   const callbackUrl = String(formData.get("callbackUrl") ?? "/");
   if (!email) return { ok: false, message: "请输入有效邮箱" };
+  const env = getServerEnv();
+  const rateLimitIp = resolveEmailRateLimitIp(
+    await headers(),
+    env.TRUST_PROXY === "true",
+    process.env.NODE_ENV,
+  );
+  try {
+    if (rateLimitIp) await consumeMagicLinkIpRateLimit(rateLimitIp);
+  } catch (error) {
+    if (isEmailRateLimitError(error))
+      return { ok: false, message: "发送太频繁，请一分钟后再试" };
+    throw error;
+  }
   const recentTokens = await db
     .select({ value: count() })
     .from(verificationTokens)
@@ -206,7 +224,7 @@ export async function requestMagicLink(
     });
     redirect("/login/verify");
   } catch (error) {
-    if (error instanceof EmailRateLimitError)
+    if (isEmailRateLimitError(error))
       return { ok: false, message: "发送太频繁，请一分钟后再试" };
     if (error instanceof AuthError)
       return { ok: false, message: "登录邮件发送失败，请稍后重试" };
@@ -249,6 +267,7 @@ export async function saveRegistration(
       set: {
         ...values,
         auditStatus,
+        revision: sql`${participants.revision} + 1`,
         adminNote: "",
       },
     });
@@ -318,6 +337,7 @@ export async function saveTeam(
             recruitStatus,
             auditStatus:
               existing.auditStatus === "rejected" ? "pending" : "approved",
+            revision: sql`${teams.revision} + 1`,
             exception: "",
             updatedAt: now,
           })
@@ -954,6 +974,7 @@ export async function submitConfirmation(
               allConfirmed: true,
               commitment: true,
               auditStatus: "pending",
+              revision: sql`${teamConfirmations.revision} + 1`,
               exception: "",
               updatedAt: new Date(),
             })
@@ -1080,6 +1101,7 @@ export async function saveSubmission(
             ...values,
             auditStatus: "pending",
             materialStatus: "pending",
+            revision: sql`${submissions.revision} + 1`,
             adminNote: "",
             updatedAt: now,
           },
@@ -1177,44 +1199,124 @@ export async function updateAudit(
   await requireAdmin();
   const parsed = auditDecisionSchema.safeParse(formDataObject(formData));
   if (!parsed.success) return invalid(parsed.error);
-  const { decision, reason } = parsed.data;
+  const { decision, reason, expectedStatus, expectedRevision } = parsed.data;
+  if (decision === expectedStatus)
+    return { ok: false, message: "审核状态没有变化" };
   const note = decision === "rejected" ? reason : "";
-  const values = { auditStatus: decision, updatedAt: new Date() } as const;
+  const now = new Date();
   try {
     if (kind === "participant") {
-      await db
+      const changed = await db
         .update(participants)
-        .set({ ...values, adminNote: note })
-        .where(eq(participants.id, id));
+        .set({
+          auditStatus: decision,
+          revision: sql`${participants.revision} + 1`,
+          adminNote: note,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(participants.id, id),
+            eq(participants.auditStatus, expectedStatus),
+            eq(participants.revision, expectedRevision),
+          ),
+        )
+        .returning({ id: participants.id });
+      if (!changed.length) fail("记录已变化，请刷新后重试");
     } else if (kind === "team") {
-      await db
+      const changed = await db
         .update(teams)
-        .set({ ...values, exception: note })
-        .where(eq(teams.id, id));
+        .set({
+          auditStatus: decision,
+          revision: sql`${teams.revision} + 1`,
+          exception: note,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(teams.id, id),
+            eq(teams.auditStatus, expectedStatus),
+            eq(teams.revision, expectedRevision),
+          ),
+        )
+        .returning({ id: teams.id });
+      if (!changed.length) fail("记录已变化，请刷新后重试");
     } else if (kind === "confirmation") {
       await db.transaction(async (tx) => {
         const [confirmation] = await tx
           .update(teamConfirmations)
-          .set({ ...values, exception: note })
-          .where(eq(teamConfirmations.id, id))
+          .set({
+            auditStatus: decision,
+            revision: sql`${teamConfirmations.revision} + 1`,
+            exception: note,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(teamConfirmations.id, id),
+              eq(teamConfirmations.auditStatus, expectedStatus),
+              eq(teamConfirmations.revision, expectedRevision),
+            ),
+          )
           .returning({ teamId: teamConfirmations.teamId });
-        if (decision === "rejected" && confirmation) {
+        if (!confirmation) fail("记录已变化，请刷新后重试");
+        if (decision === "rejected") {
           await tx
             .update(submissions)
             .set({
               publicDisplay: false,
               publicConsentAt: null,
               auditStatus: "pending",
-              updatedAt: new Date(),
+              materialStatus: "pending",
+              revision: sql`${submissions.revision} + 1`,
+              updatedAt: now,
             })
             .where(eq(submissions.teamId, confirmation.teamId));
         }
       });
     } else {
-      await db
-        .update(submissions)
-        .set({ ...values, adminNote: note })
-        .where(eq(submissions.id, id));
+      await db.transaction(async (tx) => {
+        const [submission] = await tx
+          .select({ teamId: submissions.teamId })
+          .from(submissions)
+          .where(
+            and(
+              eq(submissions.id, id),
+              eq(submissions.auditStatus, expectedStatus),
+              eq(submissions.revision, expectedRevision),
+            ),
+          )
+          .limit(1);
+        if (!submission) fail("记录已变化，请刷新后重试");
+        if (decision === "approved") {
+          const [confirmation] = await tx
+            .select({ auditStatus: teamConfirmations.auditStatus })
+            .from(teamConfirmations)
+            .where(eq(teamConfirmations.teamId, submission.teamId))
+            .limit(1)
+            .for("update");
+          if (confirmation?.auditStatus !== "approved")
+            fail("最终确认状态已变化，不能通过作品审核");
+        }
+        const changed = await tx
+          .update(submissions)
+          .set({
+            auditStatus: decision,
+            materialStatus: decision === "approved" ? "complete" : "incomplete",
+            revision: sql`${submissions.revision} + 1`,
+            adminNote: note,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(submissions.id, id),
+              eq(submissions.auditStatus, expectedStatus),
+              eq(submissions.revision, expectedRevision),
+            ),
+          )
+          .returning({ id: submissions.id });
+        if (!changed.length) fail("记录已变化，请刷新后重试");
+      });
     }
   } catch (error) {
     return mutationFailure(error, "更新审核状态失败，请稍后重试");

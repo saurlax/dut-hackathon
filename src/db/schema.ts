@@ -93,13 +93,25 @@ export const verificationTokens = pgTable(
     token: text("token").notNull(),
     expires: timestamp("expires", { withTimezone: true }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.identifier, table.token] })],
+  (table) => [
+    primaryKey({ columns: [table.identifier, table.token] }),
+    index("verification_tokens_expires_idx").on(table.expires),
+  ],
 );
 
-export const emailSendLimits = pgTable("email_send_limits", {
-  ipHash: text("ip_hash").primaryKey(),
-  lastRequestAt: timestamp("last_request_at", { withTimezone: true }).notNull(),
-});
+export const emailSendLimits = pgTable(
+  "email_send_limits",
+  {
+    keyHash: text("ip_hash").primaryKey(),
+    requestCount: integer("request_count").notNull().default(1),
+    lastRequestAt: timestamp("last_request_at", {
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    index("email_send_limits_last_request_idx").on(table.lastRequestAt),
+  ],
+);
 
 export const participants = pgTable(
   "participants",
@@ -141,6 +153,7 @@ export const participants = pgTable(
     publicContact: text("public_contact").notNull().default(""),
     publicDisplay: boolean("public_display").notNull().default(false),
     auditStatus: auditStatus("audit_status").notNull().default("pending"),
+    revision: integer("revision").notNull().default(1),
     adminNote: text("admin_note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -191,6 +204,7 @@ export const teams = pgTable(
       .notNull()
       .default("recruiting"),
     auditStatus: auditStatus("audit_status").notNull().default("pending"),
+    revision: integer("revision").notNull().default(1),
     exception: text("exception").notNull().default(""),
     finalProjectName: text("final_project_name").notNull().default(""),
     finalProjectDirection: text("final_project_direction")
@@ -277,6 +291,7 @@ export const teamConfirmations = pgTable("team_confirmations", {
   allConfirmed: boolean("all_confirmed").notNull().default(false),
   commitment: boolean("commitment").notNull().default(true),
   auditStatus: auditStatus("audit_status").notNull().default("pending"),
+  revision: integer("revision").notNull().default(1),
   exception: text("exception").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -332,6 +347,7 @@ export const submissions = pgTable("submissions", {
   materialStatus: materialStatus("material_status")
     .notNull()
     .default("pending"),
+  revision: integer("revision").notNull().default(1),
   adminNote: text("admin_note").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

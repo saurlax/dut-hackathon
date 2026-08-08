@@ -3,6 +3,11 @@ import { isSafeHttpUrl } from "@/lib/domain";
 
 const required = (label: string, max = 200) =>
   z.string().trim().min(1, `${label}不能为空`).max(max);
+const tag = z
+  .string()
+  .trim()
+  .min(1, "标签不能为空")
+  .max(24, "单个标签不能超过 24 个字");
 const stringList = z.preprocess(
   (value) =>
     typeof value === "string"
@@ -11,7 +16,11 @@ const stringList = z.preprocess(
           .map((item) => item.trim())
           .filter(Boolean)
       : value,
-  z.array(z.string()).default([]),
+  z
+    .array(tag)
+    .max(12, "标签最多填写 12 个")
+    .transform((items) => [...new Set(items)])
+    .default([]),
 );
 const checkbox = z.preprocess(
   (value) => value === true || value === "on",
@@ -86,6 +95,8 @@ export const auditDecisionSchema = z
   .object({
     decision: z.enum(["approved", "rejected"]),
     reason: z.string().trim().max(1000, "审核说明不能超过 1000 字").default(""),
+    expectedStatus: z.enum(["pending", "approved", "rejected"]),
+    expectedRevision: z.coerce.number().int().min(1),
   })
   .superRefine((value, ctx) => {
     if (value.decision === "rejected" && !value.reason) {

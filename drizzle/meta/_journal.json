@@ -50,6 +50,13 @@
       "when": 1786200000001,
       "tag": "0006_overconfident_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786200000002,
+      "tag": "0007_married_enchantress",
+      "breakpoints": true
     }
   ]
 }

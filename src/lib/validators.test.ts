@@ -66,18 +66,27 @@ describe("business validation", () => {
       applicationSchema.safeParse({ message: "x".repeat(201) }).success,
     ).toBe(false));
   it("requires a reason when an audit is rejected", () => {
+    const expected = {
+      expectedStatus: "pending",
+      expectedRevision: 1,
+    } as const;
     expect(
-      auditDecisionSchema.safeParse({ decision: "rejected", reason: "" })
-        .success,
+      auditDecisionSchema.safeParse({
+        decision: "rejected",
+        reason: "",
+        ...expected,
+      }).success,
     ).toBe(false);
     expect(
       auditDecisionSchema.safeParse({
         decision: "rejected",
         reason: "资料不完整",
+        ...expected,
       }).success,
     ).toBe(true);
     expect(
-      auditDecisionSchema.safeParse({ decision: "approved" }).success,
+      auditDecisionSchema.safeParse({ decision: "approved", ...expected })
+        .success,
     ).toBe(true);
   });
   it("limits teams to four members", () =>
@@ -189,6 +198,30 @@ describe("business validation", () => {
       skills: ["产品", "前端"],
       name: "测试",
     });
+  });
+  it("enforces tag count and item-length limits for direct server input", () => {
+    expect(
+      participantSchema.safeParse({
+        ...participantInput,
+        skills: Array.from({ length: 13 }, (_, index) => `技能${index}`),
+      }).success,
+    ).toBe(false);
+    expect(
+      participantSchema.safeParse({
+        ...participantInput,
+        skills: ["技".repeat(25)],
+      }).success,
+    ).toBe(false);
+    expect(
+      teamSchema.safeParse({
+        name: "T",
+        description: "D",
+        contact: "C",
+        recruitmentDeadline: "2099-09-01",
+        maxSize: 4,
+        techStack: Array.from({ length: 12 }, (_, index) => `技术${index}`),
+      }).success,
+    ).toBe(true);
   });
   it("strips expected track values from participant registration data", () => {
     const parsed = participantSchema.parse({

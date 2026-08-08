@@ -1,27 +1,43 @@
 import NextAuth from "next-auth";
+import type { VerificationToken } from "next-auth/adapters";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { createTransport } from "nodemailer";
 import { db } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
-import { resolveEmailRateLimitIp } from "@/lib/client-ip";
-import { consumeEmailRateLimit } from "@/lib/email-rate-limit";
+import { normalizeLoginEmail } from "@/lib/domain";
+import {
+  cleanupMagicLinkState,
+  consumeMagicLinkEmailRateLimit,
+} from "@/lib/email-rate-limit";
 import { adminEmails, getServerEnv } from "@/lib/env";
 import { createLoginEmail } from "@/lib/login-email";
 import { authorizeAdminPath } from "@/lib/proxy-authz";
 import { resolveAppRedirect } from "@/lib/redirect-url";
 
 const env = getServerEnv();
+const drizzleAdapter = DrizzleAdapter(db, {
+  usersTable: users,
+  accountsTable: accounts,
+  sessionsTable: sessions,
+  verificationTokensTable: verificationTokens,
+});
+
+// Auth.js normally creates the verification token concurrently with sending
+// the email. Persist it ourselves only after SMTP accepts the message so a
+// limiter/SMTP failure cannot leave a usable orphan token behind.
+const adapter = {
+  ...drizzleAdapter,
+  async createVerificationToken(token: VerificationToken) {
+    return token;
+  },
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: env.AUTH_SECRET,
-  adapter: DrizzleAdapter(db, {
-    usersTable: users,
-    accountsTable: accounts,
-    sessionsTable: sessions,
-    verificationTokensTable: verificationTokens,
-  }),
+  adapter,
   session: { strategy: "database" },
   trustHost: Boolean(env.AUTH_URL),
   pages: {
@@ -46,19 +62,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       from: env.EMAIL_FROM,
       async sendVerificationRequest({
         identifier,
+        token,
         url,
         expires,
         provider,
-        request,
       }) {
-        const rateLimitIp = resolveEmailRateLimitIp(
-          request.headers,
-          env.TRUST_PROXY === "true",
-          process.env.NODE_ENV,
-        );
-        if (rateLimitIp)
-          await consumeEmailRateLimit(`${rateLimitIp}:${identifier}`);
-
         const transport = createTransport(provider.server);
         const result = await transport.sendMail({
           to: identifier,
@@ -72,6 +80,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (failed.length > 0) {
           throw new Error(`登录邮件发送失败：${failed.join(", ")}`);
         }
+
+        await db.insert(verificationTokens).values({
+          identifier,
+          token: createHash("sha256")
+            .update(`${token}${env.AUTH_SECRET}`)
+            .digest("hex"),
+          expires,
+        });
       },
     }),
   ],
@@ -86,6 +102,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
+    async signIn({ user, account, email }) {
+      if (account?.type === "email" && email?.verificationRequest) {
+        const normalizedEmail = normalizeLoginEmail(user.email ?? "");
+        if (!normalizedEmail) return false;
+        await cleanupMagicLinkState();
+        await consumeMagicLinkEmailRateLimit(normalizedEmail);
+      }
+      return true;
+    },
     authorized({ request, auth }) {
       return authorizeAdminPath({
         pathname: request.nextUrl.pathname,

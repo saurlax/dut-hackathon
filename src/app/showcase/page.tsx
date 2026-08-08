@@ -76,7 +76,7 @@ export default async function ShowcasePage({
       )}
       <Pager
         basePath="/showcase"
-        searchParams={{ q }}
+        searchParams={{ q, pageSize: String(result.pageSize) }}
         page={result.page}
         pageSize={result.pageSize}
         total={result.total}

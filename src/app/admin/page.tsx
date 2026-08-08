@@ -8,6 +8,7 @@ import { AdminDetailDialog } from "@/components/admin-detail-dialog";
 import {
   ConfirmationRecordDetails,
   ParticipantRecordDetails,
+  SubmissionRecordDetails,
   TeamRecordDetails,
 } from "@/components/admin-record-details";
 import { AdminUserForm } from "@/components/admin-user-form";
@@ -83,7 +84,12 @@ export default async function AdminPage() {
                   >
                     <ParticipantRecordDetails participant={p} />
                   </AdminDetailDialog>
-                  <AdminAuditButtons kind="participant" id={p.id} />
+                  <AdminAuditButtons
+                    kind="participant"
+                    id={p.id}
+                    status={p.auditStatus}
+                    revision={p.revision}
+                  />
                 </div>,
               ],
             }))}
@@ -110,7 +116,12 @@ export default async function AdminPage() {
                   >
                     <TeamRecordDetails team={t} />
                   </AdminDetailDialog>
-                  <AdminAuditButtons kind="team" id={t.id} />
+                  <AdminAuditButtons
+                    kind="team"
+                    id={t.id}
+                    status={t.auditStatus}
+                    revision={t.revision}
+                  />
                 </div>,
               ],
             }))}
@@ -136,7 +147,12 @@ export default async function AdminPage() {
                   >
                     <ConfirmationRecordDetails confirmation={c} />
                   </AdminDetailDialog>
-                  <AdminAuditButtons kind="confirmation" id={c.id} />
+                  <AdminAuditButtons
+                    kind="confirmation"
+                    id={c.id}
+                    status={c.auditStatus}
+                    revision={c.revision}
+                  />
                 </div>,
               ],
             }))}
@@ -153,9 +169,22 @@ export default async function AdminPage() {
               cells: [
                 displayNumber("S", s.submissionNumber),
                 s.projectName,
-                s.materialStatus,
+                <MaterialStatusBadge key="m" status={s.materialStatus} />,
                 <AuditStatusBadge key="s" status={s.auditStatus} />,
-                <AdminAuditButtons key="a" kind="submission" id={s.id} />,
+                <div key="a" className="flex flex-wrap items-center gap-2">
+                  <AdminDetailDialog
+                    title={`${displayNumber("S", s.submissionNumber)} · ${s.projectName}`}
+                    description="查看作品说明和材料链接后再执行审核。"
+                  >
+                    <SubmissionRecordDetails submission={s} />
+                  </AdminDetailDialog>
+                  <AdminAuditButtons
+                    kind="submission"
+                    id={s.id}
+                    status={s.auditStatus}
+                    revision={s.revision}
+                  />
+                </div>,
               ],
             }))}
           />
@@ -251,6 +280,19 @@ function AuditStatusBadge({
       {labels[status]}
     </Badge>
   );
+}
+
+function MaterialStatusBadge({
+  status,
+}: {
+  status: "pending" | "complete" | "incomplete";
+}) {
+  const labels = {
+    pending: "待检查",
+    complete: "完整",
+    incomplete: "不完整",
+  } as const;
+  return <Badge variant="outline">{labels[status]}</Badge>;
 }
 
 function formatDateTime(value: Date) {

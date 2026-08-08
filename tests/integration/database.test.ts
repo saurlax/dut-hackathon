@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, pool } from "../../src/db/client";
@@ -41,17 +42,24 @@ import {
   verificationTokens,
 } from "../../src/db/schema";
 import {
-  consumeEmailRateLimit,
+  cleanupMagicLinkState,
+  consumeMagicLinkEmailRateLimit,
+  consumeMagicLinkIpRateLimit,
   EmailRateLimitError,
   EMAIL_RATE_LIMIT_MS,
+  IP_RATE_LIMIT_MAX_REQUESTS,
 } from "../../src/lib/email-rate-limit";
 
-const authUser = vi.hoisted(() => ({ id: "", email: "test@example.com" }));
+const { authUser, signInMock } = vi.hoisted(() => ({
+  authUser: { id: "", email: "test@example.com" },
+  signInMock: vi.fn(),
+}));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("next-auth", () => ({ AuthError: class AuthError extends Error {} }));
-vi.mock("@/auth", () => ({ signIn: vi.fn(), signOut: vi.fn() }));
+vi.mock("@/auth", () => ({ signIn: signInMock, signOut: vi.fn() }));
 vi.mock("@/lib/authz", () => ({
   requireUser: vi.fn(async () => ({ ...authUser })),
   requireAdmin: vi.fn(async () => ({ ...authUser, role: "admin" })),
@@ -115,6 +123,54 @@ function actionForm(values: Record<string, string>) {
   const formData = new FormData();
   for (const [key, value] of Object.entries(values)) formData.set(key, value);
   return formData;
+}
+
+type AuditKind = "participant" | "team" | "confirmation" | "submission";
+
+async function auditForm(
+  kind: AuditKind,
+  id: string,
+  decision: "approved" | "rejected",
+  reason = "",
+) {
+  let record: { auditStatus: string; revision: number } | undefined;
+  if (kind === "participant") {
+    [record] = await db
+      .select({
+        auditStatus: participants.auditStatus,
+        revision: participants.revision,
+      })
+      .from(participants)
+      .where(eq(participants.id, id));
+  } else if (kind === "team") {
+    [record] = await db
+      .select({ auditStatus: teams.auditStatus, revision: teams.revision })
+      .from(teams)
+      .where(eq(teams.id, id));
+  } else if (kind === "confirmation") {
+    [record] = await db
+      .select({
+        auditStatus: teamConfirmations.auditStatus,
+        revision: teamConfirmations.revision,
+      })
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.id, id));
+  } else {
+    [record] = await db
+      .select({
+        auditStatus: submissions.auditStatus,
+        revision: submissions.revision,
+      })
+      .from(submissions)
+      .where(eq(submissions.id, id));
+  }
+  if (!record) throw new Error(`Missing ${kind} audit record ${id}`);
+  return actionForm({
+    decision,
+    reason,
+    expectedStatus: record.auditStatus,
+    expectedRevision: String(record.revision),
+  });
 }
 
 function submissionForm() {
@@ -182,53 +238,57 @@ describe("PostgreSQL business constraints", () => {
       }),
     ).rejects.toThrow();
   });
-  it("allows one magic-link send per IP per rolling minute", async () => {
+  it("allows one magic-link send per email per minute", async () => {
     const secret = "rate-limit-test-secret-0123456789abcdef";
     const first = new Date("2026-01-01T00:00:00.000Z");
-    await consumeEmailRateLimit("203.0.113.10", first, secret);
+    await consumeMagicLinkEmailRateLimit("one@example.com", first, secret);
 
     await expect(
-      consumeEmailRateLimit(
-        "203.0.113.10",
+      consumeMagicLinkEmailRateLimit(
+        "one@example.com",
         new Date("2026-01-01T00:00:30.000Z"),
         secret,
       ),
     ).rejects.toBeInstanceOf(EmailRateLimitError);
 
-    await consumeEmailRateLimit(
-      "203.0.113.10",
+    await consumeMagicLinkEmailRateLimit(
+      "one@example.com",
       new Date(first.getTime() + EMAIL_RATE_LIMIT_MS + 1),
       secret,
     );
   });
-  it("tracks different IPs independently", async () => {
+  it("tracks different email addresses independently", async () => {
     const secret = "rate-limit-test-secret-0123456789abcdef";
     const now = new Date("2026-01-01T00:00:00.000Z");
 
-    await consumeEmailRateLimit("203.0.113.10", now, secret);
-    await consumeEmailRateLimit("198.51.100.20", now, secret);
+    await consumeMagicLinkEmailRateLimit("one@example.com", now, secret);
+    await consumeMagicLinkEmailRateLimit("two@example.com", now, secret);
   });
-  it("stores only a hashed IP in the rate limit table", async () => {
+  it("stores only a namespaced hash in the rate limit table", async () => {
     const secret = "rate-limit-test-secret-0123456789abcdef";
-    await consumeEmailRateLimit("203.0.113.10", new Date(), secret);
+    await consumeMagicLinkEmailRateLimit(
+      "private@example.com",
+      new Date(),
+      secret,
+    );
 
     const [row] = await db
       .select()
       .from(emailSendLimits)
-      .where(eq(emailSendLimits.ipHash, "203.0.113.10"));
+      .where(eq(emailSendLimits.keyHash, "private@example.com"));
     expect(row).toBeUndefined();
 
     const [stored] = await db.select().from(emailSendLimits);
-    expect(stored?.ipHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(stored?.ipHash).not.toContain("203.0.113.10");
+    expect(stored?.keyHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(stored?.keyHash).not.toContain("private@example.com");
   });
-  it("allows only one concurrent sender for the same IP", async () => {
+  it("allows only one concurrent sender for the same email", async () => {
     const secret = "rate-limit-test-secret-0123456789abcdef";
     const now = new Date("2026-01-01T00:00:00.000Z");
     const attempts = await Promise.allSettled([
-      consumeEmailRateLimit("203.0.113.11", now, secret),
-      consumeEmailRateLimit("203.0.113.11", now, secret),
-      consumeEmailRateLimit("203.0.113.11", now, secret),
+      consumeMagicLinkEmailRateLimit("race@example.com", now, secret),
+      consumeMagicLinkEmailRateLimit("race@example.com", now, secret),
+      consumeMagicLinkEmailRateLimit("race@example.com", now, secret),
     ]);
 
     expect(
@@ -241,6 +301,61 @@ describe("PostgreSQL business constraints", () => {
           attempt.reason instanceof EmailRateLimitError,
       ),
     ).toHaveLength(2);
+  });
+  it("caps aggregate magic-link requests from one IP", async () => {
+    const secret = "rate-limit-test-secret-0123456789abcdef";
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    for (let index = 0; index < IP_RATE_LIMIT_MAX_REQUESTS; index += 1) {
+      await consumeMagicLinkIpRateLimit("203.0.113.12", now, secret);
+    }
+    await expect(
+      consumeMagicLinkIpRateLimit("203.0.113.12", now, secret),
+    ).rejects.toBeInstanceOf(EmailRateLimitError);
+  });
+  it("rejects an IP-limited Server Action before Auth.js can create a token", async () => {
+    const now = new Date();
+    for (let index = 0; index < IP_RATE_LIMIT_MAX_REQUESTS; index += 1) {
+      await consumeMagicLinkIpRateLimit("local-dev", now);
+    }
+
+    const result = await requestMagicLink(
+      { ok: false, message: "" },
+      actionForm({ email: "blocked@example.com", callbackUrl: "/" }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain("频繁");
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(await db.select().from(verificationTokens)).toEqual([]);
+  });
+  it("cleans expired tokens and stale rate-limit buckets", async () => {
+    const now = new Date("2026-01-02T00:00:00.000Z");
+    await db.insert(verificationTokens).values([
+      {
+        identifier: "expired@example.com",
+        token: "expired",
+        expires: new Date(now.getTime() - 1),
+      },
+      {
+        identifier: "live@example.com",
+        token: "live",
+        expires: new Date(now.getTime() + 60_000),
+      },
+    ]);
+    await db.insert(emailSendLimits).values([
+      {
+        keyHash: "stale",
+        lastRequestAt: new Date(now.getTime() - 24 * 60 * 60 * 1_000 - 1),
+      },
+      { keyHash: "live", lastRequestAt: now },
+    ]);
+
+    expect(await cleanupMagicLinkState(now)).toEqual({
+      expiredTokens: 1,
+      staleRateLimits: 1,
+    });
+    expect(await db.select().from(verificationTokens)).toHaveLength(1);
+    expect(await db.select().from(emailSendLimits)).toHaveLength(1);
   });
   it("stores the contact email entered in the registration form", async () => {
     const participant = await makeParticipant();
@@ -597,7 +712,7 @@ describe("PostgreSQL business constraints", () => {
       "participant",
       participant.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected" }),
+      await auditForm("participant", participant.id, "rejected"),
     );
     expect(missingReason.ok).toBe(false);
 
@@ -605,7 +720,12 @@ describe("PostgreSQL business constraints", () => {
       "participant",
       participant.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected", reason: "请补充项目经历" }),
+      await auditForm(
+        "participant",
+        participant.id,
+        "rejected",
+        "请补充项目经历",
+      ),
     );
     let [stored] = await db
       .select()
@@ -621,7 +741,7 @@ describe("PostgreSQL business constraints", () => {
       "participant",
       participant.id,
       { ok: false, message: "" },
-      actionForm({ decision: "approved" }),
+      await auditForm("participant", participant.id, "approved"),
     );
     [stored] = await db
       .select()
@@ -647,7 +767,6 @@ describe("PostgreSQL business constraints", () => {
       teamId: team.id,
       participantId: member.id,
       position: 2,
-      consentedAt: new Date(),
     });
 
     const [list, detail] = await Promise.all([
@@ -711,6 +830,12 @@ describe("PostgreSQL business constraints", () => {
       .update(submissions)
       .set({ publicConsentAt: new Date() })
       .where(eq(submissions.id, submission.id));
+    expect((await showcase()).items).toEqual([]);
+    expect(await publicSubmissionDetail(submission.id)).toBeNull();
+    await db
+      .update(submissions)
+      .set({ materialStatus: "complete" })
+      .where(eq(submissions.id, submission.id));
     const detail = await publicSubmissionDetail(submission.id);
     expect(detail?.submission.projectName).toBe("Private by default");
     expect("adminNote" in (detail?.submission ?? {})).toBe(false);
@@ -734,6 +859,87 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(teams.id, team.id));
     expect((await showcase()).items).toEqual([]);
     expect(await publicSubmissionDetail(submission.id)).toBeNull();
+  });
+  it("backfills historical submission material states during migration", async () => {
+    const approvedLeader = await makeParticipant("Approved leader"),
+      rejectedLeader = await makeParticipant("Rejected leader"),
+      approvedTeam = await makeTeam(approvedLeader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      }),
+      rejectedTeam = await makeTeam(rejectedLeader.id);
+    await db.insert(teamConfirmations).values({
+      teamId: approvedTeam.id,
+      submittedById: approvedLeader.id,
+      auditStatus: "approved",
+    });
+    const [approvedSubmission, rejectedSubmission] = await db
+      .insert(submissions)
+      .values([
+        {
+          teamId: approvedTeam.id,
+          submittedById: approvedLeader.id,
+          projectName: "Historical approved project",
+          track: "AI",
+          oneLiner: "x",
+          background: "x",
+          problemSolved: "x",
+          coreFeatures: "x",
+          techApproach: "x",
+          innovation: "x",
+          applicationValue: "x",
+          usageGuide: "x",
+          publicDisplay: true,
+          publicConsentAt: new Date(),
+          auditStatus: "approved",
+        },
+        {
+          teamId: rejectedTeam.id,
+          submittedById: rejectedLeader.id,
+          projectName: "Historical rejected project",
+          track: "AI",
+          oneLiner: "x",
+          background: "x",
+          problemSolved: "x",
+          coreFeatures: "x",
+          techApproach: "x",
+          innovation: "x",
+          applicationValue: "x",
+          usageGuide: "x",
+          auditStatus: "rejected",
+        },
+      ])
+      .returning();
+
+    expect((await showcase()).items).toEqual([]);
+
+    const migrationSql = await readFile(
+      new URL("../../drizzle/0007_married_enchantress.sql", import.meta.url),
+      "utf8",
+    );
+    const backfillStatements = migrationSql
+      .split("--> statement-breakpoint")
+      .map((statement) => statement.trim())
+      .filter((statement) =>
+        statement.startsWith('UPDATE "submissions" SET "material_status"'),
+      );
+    expect(backfillStatements).toHaveLength(2);
+    for (const statement of backfillStatements) await pool.query(statement);
+
+    const stored = await db
+      .select({
+        id: submissions.id,
+        materialStatus: submissions.materialStatus,
+      })
+      .from(submissions);
+    expect(stored).toEqual(
+      expect.arrayContaining([
+        { id: approvedSubmission.id, materialStatus: "complete" },
+        { id: rejectedSubmission.id, materialStatus: "incomplete" },
+      ]),
+    );
+    expect((await showcase()).items).toHaveLength(1);
   });
   it("blocks duplicate final confirmation unless the previous review was rejected", async () => {
     const leader = await makeParticipant("L"),
@@ -772,6 +978,50 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(teamConfirmations.teamId, team.id));
     expect(resubmitted.ok).toBe(true);
     expect(stored).toMatchObject({ auditStatus: "pending", exception: "" });
+  });
+  it("rejects approval from a stale confirmation review after resubmission", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id);
+    authUser.id = leader.userId;
+    await submitConfirmation(
+      { ok: false, message: "" },
+      actionForm({ allConfirmed: "on" }),
+    );
+    const [first] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.teamId, team.id));
+    const staleApproval = actionForm({
+      decision: "approved",
+      expectedStatus: first.auditStatus,
+      expectedRevision: String(first.revision),
+    });
+
+    await updateAudit(
+      "confirmation",
+      first.id,
+      { ok: false, message: "" },
+      await auditForm("confirmation", first.id, "rejected", "请重新核对"),
+    );
+    await submitConfirmation(
+      { ok: false, message: "" },
+      actionForm({ allConfirmed: "on" }),
+    );
+    const result = await updateAudit(
+      "confirmation",
+      first.id,
+      { ok: false, message: "" },
+      staleApproval,
+    );
+    const [stored] = await db
+      .select()
+      .from(teamConfirmations)
+      .where(eq(teamConfirmations.id, first.id));
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain("刷新");
+    expect(stored.auditStatus).toBe("pending");
+    expect(stored.revision).toBeGreaterThan(first.revision);
   });
   it("blocks saving a submission while the final confirmation is rejected", async () => {
     const leader = await makeParticipant("L"),
@@ -836,6 +1086,7 @@ describe("PostgreSQL business constraints", () => {
         publicDisplay: true,
         publicConsentAt: new Date(),
         auditStatus: "approved",
+        materialStatus: "complete",
       })
       .returning();
 
@@ -843,7 +1094,7 @@ describe("PostgreSQL business constraints", () => {
       "confirmation",
       confirmation.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected", reason: "阵容有误" }),
+      await auditForm("confirmation", confirmation.id, "rejected", "阵容有误"),
     );
 
     expect(result.ok).toBe(true);
@@ -855,6 +1106,7 @@ describe("PostgreSQL business constraints", () => {
       publicDisplay: false,
       publicConsentAt: null,
       auditStatus: "pending",
+      materialStatus: "pending",
     });
     expect((await showcase()).items).toEqual([]);
   });
@@ -883,7 +1135,12 @@ describe("PostgreSQL business constraints", () => {
         "confirmation",
         confirmation.id,
         { ok: false, message: "" },
-        actionForm({ decision: "rejected", reason: "阵容有误" }),
+        await auditForm(
+          "confirmation",
+          confirmation.id,
+          "rejected",
+          "阵容有误",
+        ),
       ),
     ]);
 
@@ -1256,7 +1513,12 @@ describe("PostgreSQL business constraints", () => {
       "confirmation",
       confirmation.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected", reason: "成员信息有误" }),
+      await auditForm(
+        "confirmation",
+        confirmation.id,
+        "rejected",
+        "成员信息有误",
+      ),
     );
     const whileRejected = await saveSubmission(
       { ok: false, message: "" },
@@ -1270,7 +1532,7 @@ describe("PostgreSQL business constraints", () => {
       "confirmation",
       confirmation.id,
       { ok: false, message: "" },
-      actionForm({ decision: "approved" }),
+      await auditForm("confirmation", confirmation.id, "approved"),
     );
     const approved = await saveSubmission(
       { ok: false, message: "" },
@@ -1286,6 +1548,75 @@ describe("PostgreSQL business constraints", () => {
       auditStatus: "pending",
       publicDisplay: false,
     });
+  });
+  it("rejects stale submission approval and completes materials only for the reviewed revision", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+    });
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "approved",
+    });
+    authUser.id = leader.userId;
+
+    const firstForm = submissionForm();
+    firstForm.set("projectName", "Version 1");
+    firstForm.set("publicDisplay", "on");
+    await saveSubmission({ ok: false, message: "" }, firstForm);
+    const [first] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, team.id));
+    const staleApproval = actionForm({
+      decision: "approved",
+      expectedStatus: first.auditStatus,
+      expectedRevision: String(first.revision),
+    });
+
+    const secondForm = submissionForm();
+    secondForm.set("projectName", "Version 2");
+    secondForm.set("publicDisplay", "on");
+    await saveSubmission({ ok: false, message: "" }, secondForm);
+    const staleResult = await updateAudit(
+      "submission",
+      first.id,
+      { ok: false, message: "" },
+      staleApproval,
+    );
+    let [stored] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, first.id));
+    expect(staleResult).toMatchObject({ ok: false });
+    expect(staleResult.message).toContain("刷新");
+    expect(stored).toMatchObject({
+      projectName: "Version 2",
+      auditStatus: "pending",
+      materialStatus: "pending",
+    });
+    expect((await showcase()).items).toEqual([]);
+
+    const approved = await updateAudit(
+      "submission",
+      first.id,
+      { ok: false, message: "" },
+      await auditForm("submission", first.id, "approved"),
+    );
+    [stored] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, first.id));
+    expect(approved).toMatchObject({ ok: true });
+    expect(stored).toMatchObject({
+      projectName: "Version 2",
+      auditStatus: "approved",
+      materialStatus: "complete",
+    });
+    expect((await showcase()).items).toHaveLength(1);
   });
   it("editing team details does not silently resume a paused recruitment", async () => {
     const leader = await makeParticipant("L", { auditStatus: "approved" });
@@ -1404,6 +1735,8 @@ describe("PostgreSQL business constraints", () => {
         name: `Team-${i}`,
       });
     }
+    const tiedUpdatedAt = new Date("2026-08-08T00:00:00.000Z");
+    await db.update(teams).set({ updatedAt: tiedUpdatedAt });
 
     const page1 = await publicTeams("", 1, 5);
     const page2 = await publicTeams("", 2, 5);
@@ -1418,6 +1751,10 @@ describe("PostgreSQL business constraints", () => {
       ({ team }) => team.name,
     );
     expect(new Set(names).size).toBe(15);
+    const teamNumbers = [...page1.items, ...page2.items, ...page3.items].map(
+      ({ team }) => team.teamNumber,
+    );
+    expect(teamNumbers).toEqual([...teamNumbers].sort((a, b) => b - a));
 
     // pageSize clamping: negative / zero / non-numeric fall back to 12.
     expect((await publicTeams("", 1, -1)).pageSize).toBe(12);
@@ -1438,11 +1775,76 @@ describe("PostgreSQL business constraints", () => {
         registrationMethod: "个人报名，正在找队伍",
       });
     }
-    const pool = await publicParticipants("", 2, 5);
-    expect(pool.total).toBe(15);
-    expect(pool.items).toHaveLength(5);
-    expect(pool.page).toBe(2);
-    expect(pool.pageSize).toBe(5);
+    await db.update(participants).set({ updatedAt: tiedUpdatedAt });
+    const pool1 = await publicParticipants("", 1, 5);
+    const pool2 = await publicParticipants("", 2, 5);
+    const pool3 = await publicParticipants("", 3, 5);
+    const poolItems = [...pool1.items, ...pool2.items, ...pool3.items];
+    expect(pool2.total).toBe(15);
+    expect(pool2.items).toHaveLength(5);
+    expect(pool2.page).toBe(2);
+    expect(pool2.pageSize).toBe(5);
+    expect(new Set(poolItems.map(({ id }) => id)).size).toBe(15);
+    const participantNumbers = poolItems.map(
+      ({ participantNumber }) => participantNumber,
+    );
+    expect(participantNumbers).toEqual(
+      [...participantNumbers].sort((a, b) => b - a),
+    );
+  });
+  it("paginates tied showcase records without duplicates or omissions", async () => {
+    for (let index = 0; index < 7; index += 1) {
+      const leader = await makeParticipant(`Showcase-${index}`);
+      const team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+      await db.insert(teamConfirmations).values({
+        teamId: team.id,
+        submittedById: leader.id,
+        auditStatus: "approved",
+      });
+      await db.insert(submissions).values({
+        teamId: team.id,
+        submittedById: leader.id,
+        projectName: `Project-${index}`,
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        auditStatus: "approved",
+        materialStatus: "complete",
+      });
+    }
+    await db
+      .update(submissions)
+      .set({ updatedAt: new Date("2026-08-08T00:00:00.000Z") });
+
+    const pages = await Promise.all([
+      showcase("", 1, 3),
+      showcase("", 2, 3),
+      showcase("", 3, 3),
+    ]);
+    const items = pages.flatMap(({ items }) => items);
+    expect(items).toHaveLength(7);
+    expect(new Set(items.map(({ submission }) => submission.id)).size).toBe(7);
+    expect(items.map(({ submission }) => submission.projectName)).toEqual([
+      "Project-6",
+      "Project-5",
+      "Project-4",
+      "Project-3",
+      "Project-2",
+      "Project-1",
+      "Project-0",
+    ]);
   });
   it("limits active pending applications to three per participant", async () => {
     const leaders = [];
@@ -1778,7 +2180,7 @@ describe("PostgreSQL business constraints", () => {
       "team",
       team.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected", reason: "方向不明" }),
+      await auditForm("team", team.id, "rejected", "方向不明"),
     );
     expect(teamRejected.ok).toBe(true);
     const [storedTeam] = await db
@@ -1793,7 +2195,7 @@ describe("PostgreSQL business constraints", () => {
       "team",
       team.id,
       { ok: false, message: "" },
-      actionForm({ decision: "approved" }),
+      await auditForm("team", team.id, "approved"),
     );
 
     await submitConfirmation(
@@ -1808,7 +2210,7 @@ describe("PostgreSQL business constraints", () => {
       "confirmation",
       conf.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected", reason: "成员信息有误" }),
+      await auditForm("confirmation", conf.id, "rejected", "成员信息有误"),
     );
     expect(confRejected.ok).toBe(true);
     const [storedConf] = await db
@@ -1823,7 +2225,7 @@ describe("PostgreSQL business constraints", () => {
       "confirmation",
       conf.id,
       { ok: false, message: "" },
-      actionForm({ decision: "approved" }),
+      await auditForm("confirmation", conf.id, "approved"),
     );
 
     const saved = await saveSubmission(
@@ -1839,7 +2241,7 @@ describe("PostgreSQL business constraints", () => {
       "submission",
       sub.id,
       { ok: false, message: "" },
-      actionForm({ decision: "rejected", reason: "材料不全" }),
+      await auditForm("submission", sub.id, "rejected", "材料不全"),
     );
     expect(subRejected.ok).toBe(true);
     const [storedSub] = await db
@@ -1848,6 +2250,7 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(submissions.id, sub.id));
     expect(storedSub).toMatchObject({
       auditStatus: "rejected",
+      materialStatus: "incomplete",
       adminNote: "材料不全",
     });
   });
