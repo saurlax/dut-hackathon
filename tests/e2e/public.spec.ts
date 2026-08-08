@@ -14,10 +14,9 @@ test("public navigation exposes the migrated routes", async ({ page }) => {
     "href",
     "/browse-teams",
   );
-  await expect(page.getByRole("link", { name: "找队友" })).toHaveAttribute(
-    "href",
-    "/browse-pool",
-  );
+  await expect(
+    page.getByRole("link", { name: "找队友" }).first(),
+  ).toHaveAttribute("href", "/browse-pool");
   await expect(page.getByRole("link", { name: "作品展示" })).toHaveAttribute(
     "href",
     "/showcase",

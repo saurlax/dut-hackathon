@@ -19,6 +19,7 @@ import {
 import { requireAdmin, requireUser } from "@/lib/authz";
 import type { ActionState } from "@/lib/domain";
 import { isRecruitmentOpen } from "@/lib/domain";
+import { EmailRateLimitError } from "@/lib/email-rate-limit";
 import {
   applicationSchema,
   auditDecisionSchema,
@@ -191,6 +192,8 @@ export async function requestMagicLink(
     });
     redirect("/login/verify");
   } catch (error) {
+    if (error instanceof EmailRateLimitError)
+      return { ok: false, message: "发送太频繁，请一分钟后再试" };
     if (error instanceof AuthError)
       return { ok: false, message: "登录邮件发送失败，请稍后重试" };
     throw error;

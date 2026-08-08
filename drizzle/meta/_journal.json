@@ -29,6 +29,13 @@
       "when": 1786124229298,
       "tag": "0003_bored_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786169452359,
+      "tag": "0004_steady_purple_man",
+      "breakpoints": true
     }
   ]
 }

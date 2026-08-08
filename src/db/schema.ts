@@ -96,6 +96,11 @@ export const verificationTokens = pgTable(
   (table) => [primaryKey({ columns: [table.identifier, table.token] })],
 );
 
+export const emailSendLimits = pgTable("email_send_limits", {
+  ipHash: text("ip_hash").primaryKey(),
+  lastRequestAt: timestamp("last_request_at", { withTimezone: true }).notNull(),
+});
+
 export const participants = pgTable(
   "participants",
   {
