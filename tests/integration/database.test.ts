@@ -6,6 +6,7 @@ import {
   addAdminUser,
   changeTeamLeader,
   closeMyTeam,
+  removeAdmin,
   resumeMyTeam,
   respondToMembership,
   reviewTeamApplication,
@@ -1021,5 +1022,71 @@ describe("PostgreSQL business constraints", () => {
     expect(after.recruitStatus).toBe("paused");
     expect(after.description).toBe("edited description");
     expect(after.publicDisplay).toBe(true);
+  });
+  it("demotes a non-seed admin and refuses self / last-admin / unknown removal", async () => {
+    await db.insert(users).values([
+      { email: "a@example.com", role: "admin", emailVerified: new Date() },
+      { email: "b@example.com", role: "admin", emailVerified: new Date() },
+    ]);
+
+    const demoted = await removeAdmin(
+      { ok: false, message: "" },
+      actionForm({ email: "A@example.com" }),
+    );
+    expect(demoted.ok).toBe(true);
+    const [aUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, "a@example.com"));
+    expect(aUser.role).toBe("participant");
+    const [bUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, "b@example.com"));
+    expect(bUser.role).toBe("admin");
+
+    const selfRemoval = await removeAdmin(
+      { ok: false, message: "" },
+      actionForm({ email: "test@example.com" }),
+    );
+    expect(selfRemoval.ok).toBe(false);
+    expect(selfRemoval.message).toContain("自己");
+
+    const lastAdmin = await removeAdmin(
+      { ok: false, message: "" },
+      actionForm({ email: "b@example.com" }),
+    );
+    expect(lastAdmin.ok).toBe(false);
+    expect(lastAdmin.message).toContain("最后一名");
+
+    const ghost = await removeAdmin(
+      { ok: false, message: "" },
+      actionForm({ email: "ghost@example.com" }),
+    );
+    expect(ghost.ok).toBe(false);
+    expect(ghost.message).toContain("不是管理员");
+  });
+  it("refuses to remove an ADMIN_EMAILS seed admin and leaves the role intact", async () => {
+    const previous = process.env.ADMIN_EMAILS;
+    process.env.ADMIN_EMAILS = "seed@example.com";
+    try {
+      await db.insert(users).values([
+        { email: "seed@example.com", role: "admin", emailVerified: new Date() },
+        { email: "other@example.com", role: "admin", emailVerified: new Date() },
+      ]);
+      const seedRemoval = await removeAdmin(
+        { ok: false, message: "" },
+        actionForm({ email: "seed@example.com" }),
+      );
+      expect(seedRemoval.ok).toBe(false);
+      expect(seedRemoval.message).toContain("ADMIN_EMAILS");
+      const [seed] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, "seed@example.com"));
+      expect(seed.role).toBe("admin");
+    } finally {
+      process.env.ADMIN_EMAILS = previous;
+    }
   });
 });

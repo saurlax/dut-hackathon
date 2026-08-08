@@ -17,6 +17,7 @@ import {
   users,
 } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/authz";
+import { adminEmails } from "@/lib/env";
 import type { ActionState } from "@/lib/domain";
 import { isRecruitmentOpen } from "@/lib/domain";
 import {
@@ -1059,6 +1060,57 @@ export async function addAdminUser(
   }
   revalidatePath("/admin");
   return { ok: true, message: `已将 ${email} 设置为管理员` };
+}
+
+export async function removeAdmin(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireAdmin();
+  const parsed = emailLoginSchema.safeParse(formDataObject(formData));
+  if (!parsed.success) return invalid(parsed.error);
+  const email = parsed.data.email.toLowerCase();
+  if (email === (user.email ?? "").toLowerCase())
+    return { ok: false, message: "不能移除自己，请联系其他管理员操作" };
+  // Seed admins are re-promoted on every login via the signIn event, so the
+  // roster cannot be edited for them here — they must be removed from the
+  // ADMIN_EMAILS env var instead.
+  if (adminEmails().has(email))
+    return {
+      ok: false,
+      message: "该管理员由 ADMIN_EMAILS 配置，无法在后台移除",
+    };
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      // Lock the whole admin roster so two concurrent removals cannot race the
+      // last-admin guard and empty the roster.
+      const roster = await tx
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(eq(users.role, "admin"))
+        .for("update");
+      const target = roster.find((row) => row.email.toLowerCase() === email);
+      if (!target) return "missing" as const;
+      // Only block on the last admin when the target is actually on the
+      // roster — removing a non-existent email must report "not an admin".
+      if (roster.length <= 1) return "lastAdmin" as const;
+      await tx
+        .update(users)
+        .set({ role: "participant", updatedAt: new Date() })
+        .where(eq(users.id, target.id));
+      return "removed" as const;
+    });
+    if (outcome === "lastAdmin")
+      return {
+        ok: false,
+        message: "无法移除最后一名管理员，请先指定新的管理员",
+      };
+    if (outcome === "missing") return { ok: false, message: "该邮箱不是管理员" };
+  } catch (error) {
+    return mutationFailure(error, "移除管理员失败，请稍后重试");
+  }
+  revalidatePath("/admin");
+  return { ok: true, message: `已移除管理员 ${email}` };
 }
 
 export async function updateAudit(
