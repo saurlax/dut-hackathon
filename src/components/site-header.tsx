@@ -53,7 +53,7 @@ export async function SiteHeader() {
               大工黑客松 S2
             </span>
             <span className="tech-kicker brand-text mt-1 hidden text-[9px] sm:block">
-              TEAM CENTER · THINK &amp; BUILD
+              DUT HACKATHON · S2
             </span>
           </span>
         </Link>

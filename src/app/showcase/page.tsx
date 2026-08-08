@@ -3,17 +3,19 @@ import { showcase } from "@/lib/queries";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/empty-state";
+import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default async function ShowcasePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
-  const { q = "" } = await searchParams;
-  const items = await showcase(q);
+  const { q = "", page, pageSize } = await searchParams;
+  const result = await showcase(q, page, pageSize);
+  const items = result.items;
   return (
-    <>
+    <div className="paper-grain">
       <PageHeading
         eyebrow="SHOWCASE"
         title="黑客松作品展示"
@@ -25,7 +27,7 @@ export default async function ShowcasePage({
           <div className="mb-4 flex items-center justify-between">
             <span className="eyebrow">RESULTS</span>
             <span className="nums text-xs text-muted-foreground">
-              {String(items.length).padStart(2, "0")} PROJECTS
+              {String(result.total).padStart(2, "0")} PROJECTS
             </span>
           </div>
           <div className="grid gap-px overflow-hidden rounded-xl border border-primary/15 bg-primary/15 shadow-sm md:grid-cols-2 lg:grid-cols-3">
@@ -64,6 +66,13 @@ export default async function ShowcasePage({
           description="作品审核通过后将在这里展示。"
         />
       )}
-    </>
+      <Pager
+        basePath="/showcase"
+        searchParams={{ q }}
+        page={result.page}
+        pageSize={result.pageSize}
+        total={result.total}
+      />
+    </div>
   );
 }

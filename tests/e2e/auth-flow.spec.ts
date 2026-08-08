@@ -6,6 +6,10 @@ test("magic-link user completes registration and creates a team", async ({
   request,
 }) => {
   const email = `e2e-${Date.now()}@example.com`;
+  // Full magic-link flow (request -> poll Mailpit -> callback -> register ->
+  // create team) needs more headroom than the default 30s test budget,
+  // especially the mail-poll below on a cold dev server.
+  test.setTimeout(90_000);
   await page.goto("/login?callbackUrl=/register");
   await page.getByLabel("邮箱地址").fill(email);
   await page.getByRole("button", { name: "发送登录链接" }).click();
@@ -13,15 +17,18 @@ test("magic-link user completes registration and creates a team", async ({
   const base = process.env.E2E_MAILPIT_URL!;
   let id = "";
   await expect
-    .poll(async () => {
-      const response = await request.get(`${base}/api/v1/messages`);
-      const body = await response.json();
-      id =
-        body.messages?.find((message: { To?: { Address: string }[] }) =>
-          message.To?.some((to) => to.Address === email),
-        )?.ID ?? "";
-      return id;
-    })
+    .poll(
+      async () => {
+        const response = await request.get(`${base}/api/v1/messages`);
+        const body = await response.json();
+        id =
+          body.messages?.find((message: { To?: { Address: string }[] }) =>
+            message.To?.some((to) => to.Address === email),
+          )?.ID ?? "";
+        return id;
+      },
+      { timeout: 30_000, intervals: [500] },
+    )
     .not.toBe("");
   const message = await (
     await request.get(`${base}/api/v1/message/${id}`)

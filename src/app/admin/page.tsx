@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/authz";
+import { adminEmails } from "@/lib/env";
 import { adminOverview } from "@/lib/queries";
 import { displayNumber } from "@/lib/domain";
 import { AdminAuditQueue } from "@/components/admin-audit-queue";
@@ -9,6 +10,7 @@ import {
   TeamRecordDetails,
 } from "@/components/admin-record-details";
 import { AdminUserForm } from "@/components/admin-user-form";
+import { RemoveAdminButton } from "@/components/remove-admin-button";
 import { PageHeading } from "@/components/page-heading";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +24,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 export default async function AdminPage() {
-  await requireAdmin();
+  const me = await requireAdmin();
   const data = await adminOverview();
+  const seeds = adminEmails();
   const stat = [
     ["参赛者", data.participants.length],
     ["队伍", data.teams.length],
@@ -38,7 +41,7 @@ export default async function AdminPage() {
         title="赛事管理后台"
         description="审核报名、队伍、最终确认与作品材料。所有写操作均经过服务端角色校验。"
       />
-      <section className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-primary/15 bg-primary/15 md:grid-cols-5">
+      <section className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-5">
         {stat.map(([label, value]) => (
           <Card key={label} className="rounded-none border-0 shadow-none">
             <CardContent className="p-5">
@@ -173,6 +176,7 @@ export default async function AdminPage() {
                         <TableHead>姓名</TableHead>
                         <TableHead>邮箱状态</TableHead>
                         <TableHead>创建时间</TableHead>
+                        <TableHead>操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -189,6 +193,16 @@ export default async function AdminPage() {
                           </TableCell>
                           <TableCell>
                             {formatDateTime(admin.createdAt)}
+                          </TableCell>
+                          <TableCell>
+                            <RemoveAdminButton
+                              email={admin.email}
+                              disabled={
+                                me.email?.toLowerCase() ===
+                                  admin.email.toLowerCase() ||
+                                seeds.has(admin.email.toLowerCase())
+                              }
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -214,7 +228,17 @@ function AuditStatusBadge({
     approved: "已通过",
     rejected: "已驳回",
   } as const;
-  return <Badge variant="outline">{labels[status]}</Badge>;
+  const className =
+    status === "approved"
+      ? "border-success/25 bg-success/10 text-success"
+      : status === "rejected"
+        ? "border-destructive/25 bg-destructive/10 text-destructive"
+        : "border-warning/25 bg-warning/10 text-warning";
+  return (
+    <Badge variant="outline" className={className}>
+      {labels[status]}
+    </Badge>
+  );
 }
 
 function formatDateTime(value: Date) {

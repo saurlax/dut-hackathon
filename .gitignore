@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local tooling artifacts (not part of the app)
+/.playwright-mcp/
+/.next-dev.*.log
+/repomix-output.xml

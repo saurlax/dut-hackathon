@@ -58,17 +58,39 @@ export default async function SubmissionPage() {
         />
       </>
     );
-  if (confirmation.confirmation.auditStatus === "rejected")
+  // Mirror saveSubmission's gate: only an approved final confirmation opens the
+  // submission flow. Pending/rejected confirmations explain why the form is
+  // unavailable instead of letting the leader fill it in and hit an error.
+  const confirmationRow = confirmation.confirmation;
+  if (confirmationRow.auditStatus === "pending")
     return (
       <>
         <PageHeading
           eyebrow="SUBMISSION"
           title="作品提交"
-          description="最终确认通过后才能保存作品。"
+          description="最终确认通过后才能提交作品。"
+        />
+        <EmptyState
+          title="最终确认审核中"
+          description="管理员正在审核你的最终阵容，通过后即可提交作品。"
+        />
+      </>
+    );
+  if (confirmationRow.auditStatus === "rejected")
+    return (
+      <>
+        <PageHeading
+          eyebrow="SUBMISSION"
+          title="作品提交"
+          description="最终确认通过后才能提交作品。"
         />
         <EmptyState
           title="最终确认未通过"
-          description="请先按驳回原因修改并重新提交最终确认。"
+          description={
+            confirmationRow.exception
+              ? `驳回原因：${confirmationRow.exception}。请重新提交最终确认后再来提交作品。`
+              : "请重新提交最终确认后再来提交作品。"
+          }
         />
         <Button className="mt-4" asChild>
           <Link href="/final-confirmation">前往重新提交</Link>
