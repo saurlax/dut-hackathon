@@ -3,6 +3,7 @@
 import { and, count, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import {
@@ -183,8 +184,12 @@ export async function requestMagicLink(
   if (!/^\S+@\S+\.\S+$/.test(email))
     return { ok: false, message: "请输入有效邮箱" };
   try {
-    await signIn("nodemailer", { email, redirectTo: callbackUrl });
-    return { ok: true, message: "登录链接已发送，请检查邮箱" };
+    await signIn("nodemailer", {
+      email,
+      redirectTo: callbackUrl,
+      redirect: false,
+    });
+    redirect("/login/verify");
   } catch (error) {
     if (error instanceof AuthError)
       return { ok: false, message: "登录邮件发送失败，请稍后重试" };
