@@ -24,7 +24,7 @@ export function ApplicationReviewButtons({
           name="decision"
           value="approve"
           size="sm"
-          disabled={pending}
+          pending={pending}
         >
           同意并加入队伍
         </Button>
@@ -34,7 +34,7 @@ export function ApplicationReviewButtons({
           value="reject"
           size="sm"
           variant="outline"
-          disabled={pending}
+          pending={pending}
         >
           拒绝
         </Button>

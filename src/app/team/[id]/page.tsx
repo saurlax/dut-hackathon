@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Mail, Send } from "lucide-react";
 import { auth } from "@/auth";
@@ -12,6 +12,7 @@ import {
   recruitmentLabels,
   TeamApplicationEntry,
 } from "@/components/team-application-entry";
+import { Reveal } from "@/components/animation/reveal";
 
 // 将队长的公开联系方式映射成可点击的 href：邮箱走 mailto，手机号走 tel，
 // 其余（微信/QQ 等）回到页内 CONTACT 区块，让访客手动复制。
@@ -47,7 +48,7 @@ export default async function TeamDetailPage({
         <ArrowLeft className="size-3.5" />
         返回队伍大厅
       </Link>
-      <div className="border-b border-primary/15 pb-8">
+      <Reveal className="border-b border-primary/15 pb-8" y={16}>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="nums">
             {displayNumber("T", team.teamNumber)}
@@ -85,90 +86,97 @@ export default async function TeamDetailPage({
             />
           </div>
         </div>
-      </div>
-      <Card>
-        <CardHeader>
-          <p className="eyebrow text-primary">PROJECT &amp; RECRUITMENT</p>
-          <CardTitle>项目与招募</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="rounded-lg border border-primary/15 bg-white/55 p-4">
-              <h2 className="label-mono text-[10px] text-primary">DIRECTION</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {team.projectDirection || "暂未确定"}
-              </p>
-            </div>
-            <div
-              id="contact"
-              className="scroll-mt-24 rounded-lg border border-primary/15 bg-white/55 p-4"
-            >
-              <h2 className="label-mono text-[10px] text-primary">CONTACT</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {team.contact}
-              </p>
-            </div>
-          </div>
-          <div className="rule-ink pt-5">
-            <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
-              队伍介绍 · ABOUT
-            </h2>
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90">
-              {team.description}
-            </p>
-          </div>
-          <div>
-            <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
-              招募要求 · REQUIREMENTS
-            </h2>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
-              {team.requirements || "暂无额外要求"}
-            </p>
-          </div>
-          {team.techStack.length > 0 && (
-            <div>
-              <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
-                技术栈 · STACK
-              </h2>
-              <div className="flex flex-wrap gap-1.5">
-                {team.techStack.map((tag) => (
-                  <Badge key={tag} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
+      </Reveal>
+      <Reveal delay={0.08}>
+        <Card>
+          <CardHeader>
+            <p className="eyebrow text-primary">PROJECT &amp; RECRUITMENT</p>
+            <CardTitle>项目与招募</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="rounded-lg border border-primary/15 bg-white/55 p-4">
+                <h2 className="label-mono text-[10px] text-primary">
+                  DIRECTION
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {team.projectDirection || "暂未确定"}
+                </p>
+              </div>
+              <div
+                id="contact"
+                className="scroll-mt-24 rounded-lg border border-primary/15 bg-white/55 p-4"
+              >
+                <h2 className="label-mono text-[10px] text-primary">CONTACT</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {team.contact}
+                </p>
               </div>
             </div>
-          )}
-          <Separator />
-          <div>
-            <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
-              当前成员 · MEMBERS
-            </h2>
-            {members.length ? (
-              <ul className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
-                {members.map(({ participant, role }) => (
-                  <li key={participant.id} className="bg-white/85 p-4 text-sm">
-                    {participant.name}
-                    <span className="label-mono float-right text-[10px] text-muted-foreground">
-                      {role}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                成员尚未授权公开个人信息。
+            <div className="rule-ink pt-5">
+              <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
+                队伍介绍 · ABOUT
+              </h2>
+              <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90">
+                {team.description}
               </p>
-            )}
-            {currentSize > members.length && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                另有 {currentSize - members.length} 名成员未公开姓名。
+            </div>
+            <div>
+              <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
+                招募要求 · REQUIREMENTS
+              </h2>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
+                {team.requirements || "暂无额外要求"}
               </p>
+            </div>
+            {team.techStack.length > 0 && (
+              <div>
+                <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
+                  技术栈 · STACK
+                </h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {team.techStack.map((tag) => (
+                    <Badge key={tag} variant="outline">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
-      <div id="apply" className="scroll-mt-24">
+            <Separator />
+            <div>
+              <h2 className="label-mono mb-2.5 text-[11px] text-muted-foreground">
+                当前成员 · MEMBERS
+              </h2>
+              {members.length ? (
+                <ul className="grid gap-px overflow-hidden rounded-lg border border-primary/15 bg-primary/15 sm:grid-cols-2">
+                  {members.map(({ participant, role }) => (
+                    <li
+                      key={participant.id}
+                      className="bg-white/85 p-4 text-sm"
+                    >
+                      {participant.name}
+                      <span className="label-mono float-right text-[10px] text-muted-foreground">
+                        {role}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  成员尚未授权公开个人信息。
+                </p>
+              )}
+              {currentSize > members.length && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  另有 {currentSize - members.length} 名成员未公开姓名。
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </Reveal>
+      <Reveal id="apply" className="scroll-mt-24" delay={0.12}>
         <TeamApplicationEntry
           teamId={team.id}
           recruitStatus={team.recruitStatus}
@@ -179,7 +187,7 @@ export default async function TeamDetailPage({
           authenticated={Boolean(session?.user?.id)}
           context={applicationContext}
         />
-      </div>
+      </Reveal>
       <StickyActionBar contactHref={contactHref(team.contact)} />
     </div>
   );

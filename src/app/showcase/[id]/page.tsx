@@ -1,10 +1,11 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { publicSubmissionDetail } from "@/lib/queries";
 import { isSafeHttpUrl } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/animation/reveal";
 export default async function ShowcaseDetail({
   params,
 }: {
@@ -32,7 +33,7 @@ export default async function ShowcaseDetail({
         <ArrowLeft className="size-3.5" />
         返回作品展示
       </Link>
-      <header className="border-b border-primary/15 pb-8">
+      <Reveal className="border-b border-primary/15 pb-8" y={16}>
         <Badge variant="outline">{s.track}</Badge>
         <h1 className="mt-4 font-display text-4xl font-extrabold leading-tight md:text-5xl">
           {s.projectName}
@@ -40,11 +41,14 @@ export default async function ShowcaseDetail({
         <p className="label-mono mt-3 text-[11px] text-muted-foreground">
           {row.teamName}
         </p>
-      </header>
-      <p className="tech-frame my-8 bg-white/35 px-6 py-10 font-display text-xl font-semibold leading-relaxed md:text-2xl">
+      </Reveal>
+      <Reveal
+        className="tech-frame my-8 bg-white/35 px-6 py-10 font-display text-xl font-semibold leading-relaxed md:text-2xl"
+        delay={0.08}
+      >
         {s.oneLiner}
-      </p>
-      <div className="grid gap-5 md:grid-cols-2">
+      </Reveal>
+      <Reveal className="grid gap-5 md:grid-cols-2" delay={0.1}>
         {sections.map(([title, text]) => (
           <section
             key={title}
@@ -56,8 +60,8 @@ export default async function ShowcaseDetail({
             </p>
           </section>
         ))}
-      </div>
-      <div className="mt-10 flex flex-wrap gap-2">
+      </Reveal>
+      <Reveal className="mt-10 flex flex-wrap gap-2" delay={0.12}>
         {Object.entries(s.links)
           .filter(([, url]) => isSafeHttpUrl(url))
           .map(([label, url]) => (
@@ -68,7 +72,7 @@ export default async function ShowcaseDetail({
               </a>
             </Button>
           ))}
-      </div>
+      </Reveal>
     </article>
   );
 }

@@ -19,6 +19,7 @@
 - Auth.js 5、Nodemailer 邮箱魔法链接
 - PostgreSQL 17、Drizzle ORM、Drizzle Kit
 - Tailwind CSS 4、shadcn/ui、Radix UI、Lucide
+- Motion、next-view-transitions（滚动/局部动画与路由 crossfade）
 - React Hook Form、Zod
 - Vitest、Testing Library、Playwright
 

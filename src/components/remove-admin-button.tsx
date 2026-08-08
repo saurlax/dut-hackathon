@@ -36,13 +36,8 @@ export function RemoveAdminButton({
     <div className="flex flex-wrap items-center gap-2">
       <form action={action}>
         <input type="hidden" name="email" value={email} />
-        <Button
-          type="submit"
-          variant="destructive"
-          size="sm"
-          disabled={pending}
-        >
-          {pending ? "移除中…" : "确认移除"}
+        <Button type="submit" variant="destructive" size="sm" pending={pending}>
+          确认移除
         </Button>
       </form>
       <Button

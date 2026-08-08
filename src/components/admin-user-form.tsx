@@ -34,8 +34,8 @@ export function AdminUserForm() {
           已注册用户会立即提升为管理员；尚未注册的邮箱会预创建账户，对方可直接使用魔法链接登录。
         </p>
       </div>
-      <Button type="submit" disabled={pending}>
-        {pending ? "正在添加…" : "新增管理员"}
+      <Button type="submit" pending={pending}>
+        新增管理员
       </Button>
       <FormMessage state={state} />
     </form>

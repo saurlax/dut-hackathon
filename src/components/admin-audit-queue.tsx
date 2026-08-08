@@ -94,7 +94,7 @@ export function AdminAuditQueue({
                 ))}
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody key={filter} className="content-in">
               {visibleRecords.length ? (
                 visibleRecords.map((record) => (
                   <TableRow key={record.key}>

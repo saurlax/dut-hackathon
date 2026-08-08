@@ -47,8 +47,8 @@ function ApproveButton({ kind, id }: { kind: AuditKind; id: string }) {
     <div className="space-y-2">
       <form action={action}>
         <input type="hidden" name="decision" value="approved" />
-        <Button size="sm" variant="outline" disabled={pending}>
-          {pending ? "处理中…" : moderationRecord ? "恢复公开" : "通过"}
+        <Button size="sm" variant="outline" pending={pending}>
+          {moderationRecord ? "恢复公开" : "通过"}
         </Button>
       </form>
       {!state.ok && <FormMessage state={state} />}
@@ -104,8 +104,8 @@ function RejectDialog({ kind, id }: { kind: AuditKind; id: string }) {
                 取消
               </Button>
             </DialogClose>
-            <Button type="submit" variant="destructive" disabled={pending}>
-              {pending ? "处理中…" : moderationRecord ? "确认下架" : "确认驳回"}
+            <Button type="submit" variant="destructive" pending={pending}>
+              {moderationRecord ? "确认下架" : "确认驳回"}
             </Button>
           </DialogFooter>
         </form>

@@ -114,8 +114,8 @@ export function SubmissionForm({
         defaultChecked={submission?.publicDisplay ?? false}
       />
       <FormMessage state={state} />
-      <Button size="lg" disabled={pending}>
-        {pending ? "保存中…" : submission ? "更新作品" : "提交作品"}
+      <Button size="lg" pending={pending}>
+        {submission ? "更新作品" : "提交作品"}
       </Button>
     </form>
   );

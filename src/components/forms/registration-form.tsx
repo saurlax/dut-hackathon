@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { saveRegistration } from "@/app/actions";
 import { initialActionState } from "@/lib/domain";
 import type { participants } from "@/db/schema";
@@ -103,7 +103,7 @@ export function RegistrationForm({
   return (
     <>
       {state.ok && (
-        <div className="mb-6 rounded-xl border border-success/25 bg-success/10 p-5">
+        <div className="status-in mb-6 rounded-xl border border-success/25 bg-success/10 p-5">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
             <div>
@@ -285,8 +285,8 @@ export function RegistrationForm({
           />
         </div>
         <FormMessage state={state} />
-        <Button size="lg" disabled={pending}>
-          {pending ? "保存中…" : participant ? "保存修改" : "提交报名"}
+        <Button size="lg" pending={pending}>
+          {participant ? "保存修改" : "提交报名"}
         </Button>
       </form>
     </>

@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { saveTeam } from "@/app/actions";
 import { initialActionState } from "@/lib/domain";
 import type { teams } from "@/db/schema";
@@ -85,7 +85,7 @@ export function TeamForm({ team }: { team: TeamFormValue | null }) {
   return (
     <>
       {state.ok && (
-        <div className="mb-6 rounded-xl border border-success/25 bg-success/10 p-5">
+        <div className="status-in mb-6 rounded-xl border border-success/25 bg-success/10 p-5">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
             <div>
@@ -211,8 +211,8 @@ export function TeamForm({ team }: { team: TeamFormValue | null }) {
           />
         </div>
         <FormMessage state={state} />
-        <Button size="lg" disabled={pending}>
-          {pending ? "保存中…" : team ? "更新队伍" : "创建队伍"}
+        <Button size="lg" pending={pending}>
+          {team ? "更新队伍" : "创建队伍"}
         </Button>
       </form>
     </>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { showcase } from "@/lib/queries";
 import { PageHeading } from "@/components/page-heading";
 import { SearchBar } from "@/components/search-bar";
@@ -7,6 +7,7 @@ import { Pager } from "@/components/pager";
 import { BackHome } from "@/components/back-home";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Reveal } from "@/components/animation/reveal";
 export default async function ShowcasePage({
   searchParams,
 }: {
@@ -33,32 +34,37 @@ export default async function ShowcasePage({
             </span>
           </div>
           <div className="grid gap-px overflow-hidden rounded-xl border border-primary/15 bg-primary/15 shadow-sm md:grid-cols-2 lg:grid-cols-3">
-            {items.map(({ submission, teamName }) => (
-              <Link
-                href={`/showcase/${submission.id}`}
+            {items.map(({ submission, teamName }, index) => (
+              <Reveal
                 key={submission.id}
-                className="group"
+                className="h-full"
+                delay={Math.min(index * 0.04, 0.2)}
               >
-                <Card className="relative h-full rounded-none border-0 bg-white/90 shadow-none transition hover:bg-secondary/45">
-                  <span className="brand-gradient absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 transition-transform duration-200 group-hover:scale-x-100" />
-                  <CardHeader>
-                    <Badge variant="outline" className="w-fit">
-                      {submission.track}
-                    </Badge>
-                    <CardTitle className="mt-2 font-display text-xl font-bold">
-                      {submission.projectName}
-                    </CardTitle>
-                    <p className="label-mono text-[10px] text-muted-foreground">
-                      {teamName}
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="line-clamp-3 text-sm">
-                      {submission.oneLiner}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
+                <Link
+                  href={`/showcase/${submission.id}`}
+                  className="group flex h-full"
+                >
+                  <Card className="relative h-full rounded-none border-0 bg-white/90 shadow-none transition hover:bg-secondary/45">
+                    <span className="brand-gradient absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 transition-transform duration-200 group-hover:scale-x-100" />
+                    <CardHeader>
+                      <Badge variant="outline" className="w-fit">
+                        {submission.track}
+                      </Badge>
+                      <CardTitle className="mt-2 font-display text-xl font-bold">
+                        {submission.projectName}
+                      </CardTitle>
+                      <p className="label-mono text-[10px] text-muted-foreground">
+                        {teamName}
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="line-clamp-3 text-sm">
+                        {submission.oneLiner}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </Reveal>
             ))}
           </div>
         </>

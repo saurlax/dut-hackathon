@@ -19,7 +19,7 @@ export function MembershipActions({ confirmed }: { confirmed: boolean }) {
             type="submit"
             name="decision"
             value="confirm"
-            disabled={pending}
+            pending={pending}
           >
             确认加入
           </Button>
@@ -29,7 +29,7 @@ export function MembershipActions({ confirmed }: { confirmed: boolean }) {
           name="decision"
           value="leave"
           variant="destructive"
-          disabled={pending}
+          pending={pending}
         >
           {confirmed ? "退出队伍" : "拒绝加入"}
         </Button>

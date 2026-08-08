@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { requireUser } from "@/lib/authz";
 import {
   confirmationForTeam,
@@ -10,6 +10,7 @@ import { SubmissionForm } from "@/components/forms/submission-form";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/animation/reveal";
 
 const auditLabels = {
   pending: "等待审核",
@@ -105,7 +106,7 @@ export default async function SubmissionPage() {
         description="作品默认不公开；只有明确勾选授权且审核通过后才会进入作品展示。"
       />
       {submission && (
-        <div className="mb-6 space-y-3 rounded-xl border border-primary/15 bg-white/70 p-5 shadow-xs">
+        <Reveal className="mb-6 space-y-3 rounded-xl border border-primary/15 bg-white/70 p-5 shadow-xs">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold">当前审核状态</span>
             <Badge variant="outline">
@@ -121,9 +122,11 @@ export default async function SubmissionPage() {
               {submission.adminNote}
             </p>
           )}
-        </div>
+        </Reveal>
       )}
-      <SubmissionForm submission={submission} />
+      <Reveal delay={submission ? 0.08 : 0}>
+        <SubmissionForm submission={submission} />
+      </Reveal>
     </div>
   );
 }

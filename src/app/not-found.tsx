@@ -1,8 +1,9 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/animation/reveal";
 export default function NotFound() {
   return (
-    <div className="tech-frame py-28 text-center">
+    <Reveal className="tech-frame py-28 text-center">
       <p className="eyebrow text-primary">ERROR · 404</p>
       <h1 className="mt-3 text-4xl font-extrabold">页面不存在</h1>
       <p className="mt-3 text-muted-foreground">
@@ -11,6 +12,6 @@ export default function NotFound() {
       <Button className="mt-7" asChild>
         <Link href="/">返回首页</Link>
       </Button>
-    </div>
+    </Reveal>
   );
 }
