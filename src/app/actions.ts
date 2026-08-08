@@ -250,30 +250,19 @@ export async function saveRegistration(
   const user = await requireUser("/register");
   const parsed = participantSchema.safeParse(formDataObject(formData));
   if (!parsed.success) return invalid(parsed.error);
-  const existing = (
-    await db
-      .select({
-        id: participants.id,
-        auditStatus: participants.auditStatus,
-      })
-      .from(participants)
-      .where(eq(participants.userId, user.id))
-      .limit(1)
-  )[0];
-  const auditStatus =
-    existing?.auditStatus === "rejected" ? "pending" : "approved";
   const values = {
     ...parsed.data,
+    auditStatus: "pending" as const,
+    approvedRevision: null,
     updatedAt: new Date(),
   };
   await db
     .insert(participants)
-    .values({ ...values, userId: user.id, auditStatus })
+    .values({ ...values, userId: user.id })
     .onConflictDoUpdate({
       target: participants.userId,
       set: {
         ...values,
-        auditStatus,
         revision: sql`${participants.revision} + 1`,
         adminNote: "",
       },
@@ -281,14 +270,12 @@ export async function saveRegistration(
   revalidatePath("/register");
   revalidatePath("/my-registration");
   revalidatePath("/browse-pool");
+  revalidatePath("/team/[id]", "page");
   return {
     ok: true,
-    message:
-      auditStatus === "pending"
-        ? "报名资料已保存；如已授权公开，需管理员恢复后才可展示"
-        : parsed.data.publicDisplay
-          ? "报名资料已保存，并已按授权公开展示"
-          : "报名资料已保存",
+    message: parsed.data.publicDisplay
+      ? "报名资料已保存并提交审核；审核通过后才会公开展示"
+      : "报名资料已保存并提交审核；当前未授权公开，不会展示",
   };
 }
 
@@ -305,9 +292,9 @@ export async function saveTeam(
   const now = new Date();
   const teamValues = {
     ...parsed.data,
+    approvedRevision: null,
     publicConsentAt: parsed.data.publicDisplay ? now : null,
   };
-  let requiresAdminRestore = false;
   try {
     await db.transaction(async (tx) => {
       const participant = await participantForUserInTransaction(tx, user.id);
@@ -323,7 +310,6 @@ export async function saveTeam(
 
       if (existing) {
         await assertTeamMutable(tx, existing.id);
-        requiresAdminRestore = existing.auditStatus === "rejected";
         const currentSize = await teamSize(tx, existing.id);
         if (currentSize > teamValues.maxSize)
           fail(`当前已有 ${currentSize} 名成员，不能缩减到更小人数`);
@@ -342,8 +328,7 @@ export async function saveTeam(
           .set({
             ...teamValues,
             recruitStatus,
-            auditStatus:
-              existing.auditStatus === "rejected" ? "pending" : "approved",
+            auditStatus: "pending",
             revision: sql`${teams.revision} + 1`,
             exception: "",
             updatedAt: now,
@@ -376,7 +361,7 @@ export async function saveTeam(
         .insert(teams)
         .values({
           ...teamValues,
-          auditStatus: "approved",
+          auditStatus: "pending",
           leaderParticipantId: lockedParticipant.id,
         })
         .returning();
@@ -394,13 +379,12 @@ export async function saveTeam(
   revalidatePath("/create");
   revalidatePath("/my-team");
   revalidatePath("/browse-teams");
+  revalidatePath("/team/[id]", "page");
   return {
     ok: true,
-    message: requiresAdminRestore
-      ? "队伍资料已保存；如已授权公开，需管理员恢复后才可展示"
-      : parsed.data.publicDisplay
-        ? "队伍资料已保存，并已按授权公开展示"
-        : "队伍资料已保存；当前未授权公开，不会显示在组队大厅",
+    message: parsed.data.publicDisplay
+      ? "队伍资料已保存并提交审核；审核通过且处于招募中时才会公开展示"
+      : "队伍资料已保存并提交审核；当前未授权公开，不会显示在组队大厅",
   };
 }
 
@@ -416,9 +400,11 @@ export async function changeTeamLeader(
   const number = Number(raw);
   if (!Number.isInteger(number))
     return { ok: false, message: "请输入有效参赛者编号" };
+  let teamId = "";
   try {
     await db.transaction(async (tx) => {
       const owned = await lockTeamForLeader(tx, user.id);
+      teamId = owned.team.id;
       await assertTeamMutable(tx, owned.team.id);
       const target = (
         await tx
@@ -461,6 +447,10 @@ export async function changeTeamLeader(
         .update(teams)
         .set({
           leaderParticipantId: target.participant.id,
+          auditStatus: "pending",
+          approvedRevision: null,
+          revision: sql`${teams.revision} + 1`,
+          exception: "",
           updatedAt: new Date(),
         })
         .where(
@@ -477,7 +467,9 @@ export async function changeTeamLeader(
   }
   revalidatePath("/my-team");
   revalidatePath("/create");
-  return { ok: true, message: "队长已转让" };
+  revalidatePath("/browse-teams");
+  if (teamId) revalidatePath(`/team/${teamId}`);
+  return { ok: true, message: "队长已转让；队伍资料已重新进入审核" };
 }
 
 export async function applyToTeam(
@@ -680,11 +672,20 @@ export async function reviewTeamApplication(
             ne(teamApplications.id, application.id),
           ),
         );
-      if (currentSize + 1 >= team.maxSize) {
-        await tx
-          .update(teams)
-          .set({ recruitStatus: "full", updatedAt: now })
-          .where(eq(teams.id, team.id));
+      const becameFull = currentSize + 1 >= team.maxSize;
+      // Roster changes are already protected by participant review and member
+      // consent. Still advance the team revision so an administrator cannot
+      // submit a decision based on a stale roster shown in the review dialog.
+      await tx
+        .update(teams)
+        .set({
+          ...(becameFull ? { recruitStatus: "full" as const } : {}),
+          revision: sql`${teams.revision} + 1`,
+          approvedRevision: sql`case when ${teams.auditStatus} = 'approved' then ${teams.revision} + 1 else null end`,
+          updatedAt: now,
+        })
+        .where(eq(teams.id, team.id));
+      if (becameFull) {
         await tx
           .update(teamApplications)
           .set({ status: "rejected", updatedAt: now })
@@ -763,19 +764,19 @@ export async function respondToMembership(
           .limit(1)
           .for("update")
       )[0];
+      const now = new Date();
 
       if (decision === "confirm") {
         if (membership.consentedAt) fail("你已经确认加入这支队伍");
         await tx
           .update(teamMembers)
-          .set({ consentedAt: new Date() })
+          .set({ consentedAt: now })
           .where(
             and(
               eq(teamMembers.teamId, team.id),
               eq(teamMembers.participantId, participant.id),
             ),
           );
-        if (!confirmation) return;
       } else if (
         confirmation &&
         membership.consentedAt &&
@@ -794,7 +795,10 @@ export async function respondToMembership(
             publicDisplay: false,
             publicConsentAt: null,
             auditStatus: "pending",
-            updatedAt: new Date(),
+            materialStatus: "pending",
+            revision: sql`${submissions.revision} + 1`,
+            adminNote: "",
+            updatedAt: now,
           })
           .where(eq(submissions.teamId, team.id));
         invalidatedConfirmation = true;
@@ -827,7 +831,18 @@ export async function respondToMembership(
             ...(confirmation
               ? { publicDisplay: false, publicConsentAt: null }
               : {}),
-            updatedAt: new Date(),
+            revision: sql`${teams.revision} + 1`,
+            approvedRevision: sql`case when ${teams.auditStatus} = 'approved' then ${teams.revision} + 1 else null end`,
+            updatedAt: now,
+          })
+          .where(eq(teams.id, team.id));
+      } else {
+        await tx
+          .update(teams)
+          .set({
+            revision: sql`${teams.revision} + 1`,
+            approvedRevision: sql`case when ${teams.auditStatus} = 'approved' then ${teams.revision} + 1 else null end`,
+            updatedAt: now,
           })
           .where(eq(teams.id, team.id));
       }
@@ -1277,6 +1292,8 @@ export async function updateAudit(
         .set({
           auditStatus: decision,
           revision: sql`${participants.revision} + 1`,
+          approvedRevision:
+            decision === "approved" ? sql`${participants.revision} + 1` : null,
           adminNote: note,
           updatedAt: now,
         })
@@ -1295,6 +1312,8 @@ export async function updateAudit(
         .set({
           auditStatus: decision,
           revision: sql`${teams.revision} + 1`,
+          approvedRevision:
+            decision === "approved" ? sql`${teams.revision} + 1` : null,
           exception: note,
           updatedAt: now,
         })
@@ -1395,15 +1414,18 @@ export async function updateAudit(
   revalidatePath("/browse-teams");
   revalidatePath("/browse-pool");
   revalidatePath("/showcase");
+  revalidatePath("/team/[id]", "page");
+  revalidatePath("/showcase/[id]", "page");
   const moderationRecord = kind === "participant" || kind === "team";
   return {
     ok: true,
-    message: moderationRecord
-      ? decision === "approved"
-        ? "已恢复公开"
-        : "已下架并记录原因"
-      : decision === "approved"
-        ? "审核已通过"
-        : "已驳回并记录原因",
+    message:
+      decision === "approved"
+        ? moderationRecord && expectedStatus === "rejected"
+          ? "已恢复并通过审核"
+          : "审核已通过"
+        : moderationRecord && expectedStatus === "approved"
+          ? "已下架并记录原因"
+          : "已驳回并记录原因",
   };
 }

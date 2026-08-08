@@ -45,7 +45,7 @@ export default async function AdminPage() {
       <PageHeading
         eyebrow="ADMIN CONSOLE"
         title="赛事管理后台"
-        description="报名与队伍资料提交后立即公开，管理员可随时巡查并下架违规内容；最终确认与作品仍需要逐条审核。所有写操作均经过服务端角色校验。"
+        description="报名、队伍、最终确认和作品均需逐条审核；已通过的报名或队伍资料修改后会自动重新进入待审核。所有写操作均经过服务端角色校验。"
       />
       <section className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-5">
         {stat.map(([label, value]) => (
@@ -70,10 +70,9 @@ export default async function AdminPage() {
         </TabsList>
         <TabsContent value="participants">
           <AdminAuditQueue
-            title="参赛者资料巡查"
+            title="参赛者资料审核"
             headers={["编号", "姓名", "学校", "状态", "操作"]}
             allLabel="全部参赛者"
-            defaultFilter="all"
             records={data.participants.map((p) => ({
               key: p.id,
               status: p.auditStatus,
@@ -85,7 +84,7 @@ export default async function AdminPage() {
                 <div key="a" className="flex flex-wrap items-center gap-2">
                   <AdminDetailDialog
                     title={`${p.number} · ${p.name}`}
-                    description="报名资料已自动公开；仅在下架或恢复时操作。"
+                    description="查看完整报名资料后再执行审核。"
                   >
                     <ParticipantRecordDetails participant={p} />
                   </AdminDetailDialog>
@@ -102,10 +101,9 @@ export default async function AdminPage() {
         </TabsContent>
         <TabsContent value="teams">
           <AdminAuditQueue
-            title="队伍资料巡查"
+            title="队伍资料审核"
             headers={["编号", "队名", "方向", "状态", "操作"]}
             allLabel="全部队伍"
-            defaultFilter="all"
             records={data.teams.map((t) => ({
               key: t.id,
               status: t.auditStatus,
@@ -117,7 +115,7 @@ export default async function AdminPage() {
                 <div key="a" className="flex flex-wrap items-center gap-2">
                   <AdminDetailDialog
                     title={`${t.number} · ${t.name}`}
-                    description="队伍资料已自动公开；仅在下架或恢复时操作。"
+                    description="查看队伍资料和当前成员后再执行审核。"
                   >
                     <TeamRecordDetails team={t} />
                   </AdminDetailDialog>

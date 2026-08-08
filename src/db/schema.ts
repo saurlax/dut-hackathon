@@ -174,6 +174,7 @@ export const participants = pgTable(
     publicDisplay: boolean("public_display").notNull().default(false),
     auditStatus: auditStatus("audit_status").notNull().default("pending"),
     revision: integer("revision").notNull().default(1),
+    approvedRevision: integer("approved_revision"),
     adminNote: text("admin_note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -182,7 +183,13 @@ export const participants = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("participants_audit_idx").on(table.auditStatus)],
+  (table) => [
+    check(
+      "participants_approval_revision_check",
+      sql`(${table.auditStatus} = 'approved' and ${table.approvedRevision} is not distinct from ${table.revision}) or (${table.auditStatus} <> 'approved' and ${table.approvedRevision} is null)`,
+    ),
+    index("participants_audit_idx").on(table.auditStatus),
+  ],
 );
 
 export const teams = pgTable(
@@ -225,6 +232,7 @@ export const teams = pgTable(
       .default("recruiting"),
     auditStatus: auditStatus("audit_status").notNull().default("pending"),
     revision: integer("revision").notNull().default(1),
+    approvedRevision: integer("approved_revision"),
     exception: text("exception").notNull().default(""),
     finalProjectName: text("final_project_name").notNull().default(""),
     finalProjectDirection: text("final_project_direction")
@@ -238,6 +246,10 @@ export const teams = pgTable(
       .defaultNow(),
   },
   (table) => [
+    check(
+      "teams_approval_revision_check",
+      sql`(${table.auditStatus} = 'approved' and ${table.approvedRevision} is not distinct from ${table.revision}) or (${table.auditStatus} <> 'approved' and ${table.approvedRevision} is null)`,
+    ),
     check("teams_max_size_check", sql`${table.maxSize} between 1 and 4`),
     index("teams_public_idx").on(
       table.publicDisplay,

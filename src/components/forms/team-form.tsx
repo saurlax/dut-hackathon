@@ -92,7 +92,7 @@ export function TeamForm({ team }: { team: TeamFormValue | null }) {
               <h2 className="font-display text-lg font-bold">队伍资料已保存</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 {draft.publicDisplay
-                  ? "队伍会按公开授权立即展示；管理员会不定期巡查违规内容。"
+                  ? "队伍已进入审核；审核通过且处于招募中后才会公开展示。"
                   : "当前未授权公开，不会出现在组队大厅。"}
               </p>
             </div>
@@ -207,7 +207,7 @@ export function TeamForm({ team }: { team: TeamFormValue | null }) {
             label="我同意公开队伍资料、联系渠道和已授权成员信息"
             checked={draft.publicDisplay}
             onCheckedChange={(checked) => update("publicDisplay", checked)}
-            description="未勾选时队伍不会出现在组队大厅；勾选后会立即公开，管理员会不定期巡查。"
+            description="未勾选时队伍不会出现在组队大厅；勾选后仍需管理员审核通过，后续修改会重新审核。"
           />
         </div>
         <FormMessage state={state} />

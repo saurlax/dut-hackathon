@@ -21,7 +21,7 @@ export default async function PoolPage({
       <PageHeading
         eyebrow="TALENT POOL"
         title="发现想加入项目的伙伴"
-        description="公开资料由参赛者授权后立即展示；点击卡片可查看完整公开资料，联系时请尊重对方隐私。"
+        description="这里只展示参赛者授权且审核通过的资料；点击卡片可查看完整公开资料，联系时请尊重对方隐私。"
       />
       <SearchBar defaultValue={q} placeholder="搜索姓名或个人简介" />
       {/* ── Section banner (always shown, even at 0 people) ───────── */}

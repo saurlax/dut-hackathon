@@ -10,9 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Reveal } from "@/components/animation/reveal";
 
 const auditLabels = {
-  pending: "待恢复公开",
-  approved: "已公开可用",
-  rejected: "已被下架",
+  pending: "待审核",
+  approved: "审核通过",
+  rejected: "审核未通过",
 } as const;
 
 export default async function MyRegistration() {
@@ -48,7 +48,7 @@ export default async function MyRegistration() {
       <PageHeading
         eyebrow={displayNumber("P", p.participantNumber)}
         title="我的报名"
-        description="资料公开状态和公开设置一目了然。"
+        description="资料审核状态和公开设置一目了然；保存修改后会重新进入审核。"
       />
       <Reveal>
         <Card className="border-primary/15 bg-primary/15">

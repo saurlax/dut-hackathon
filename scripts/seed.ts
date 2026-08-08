@@ -44,7 +44,6 @@ async function main() {
       bio: "用于本地开发的演示资料。",
       publicContact: "demo@example.com",
       publicDisplay: true,
-      auditStatus: "approved",
     });
   }
   console.log("Development seed applied.");

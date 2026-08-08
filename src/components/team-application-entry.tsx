@@ -115,12 +115,12 @@ export function TeamApplicationEntry({
     const rejected = context.participant.auditStatus === "rejected";
     return (
       <ApplicationNotice
-        title={rejected ? "报名资料已被下架" : "报名资料暂不可用"}
+        title={rejected ? "报名资料审核未通过" : "报名资料待审核"}
         description={
           rejected
             ? context.participant.adminNote ||
-              "请修改报名资料后等待管理员恢复。"
-            : "资料暂不可用，请稍后在“我的报名”查看状态。"
+              "请修改报名资料后等待管理员重新审核。"
+            : "管理员审核通过后才能申请队伍；你可以在“我的报名”查看状态。"
         }
         href="/my-registration"
         actionLabel="查看报名状态"

@@ -27,9 +27,9 @@ const recruitmentLabels = {
 } as const;
 
 const auditLabels = {
-  pending: "待恢复公开",
-  approved: "已公开可用",
-  rejected: "已被下架",
+  pending: "待审核",
+  approved: "审核通过",
+  rejected: "审核未通过",
 } as const;
 
 function teamHallStatus(team: {
@@ -41,8 +41,8 @@ function teamHallStatus(team: {
 }) {
   const blockers: string[] = [];
   if (!team.publicDisplay || !team.publicConsentAt) blockers.push("未授权公开");
-  if (team.auditStatus === "pending") blockers.push("待恢复公开");
-  if (team.auditStatus === "rejected") blockers.push("已被下架");
+  if (team.auditStatus === "pending") blockers.push("待审核");
+  if (team.auditStatus === "rejected") blockers.push("审核未通过");
   if (team.recruitStatus !== "recruiting")
     blockers.push(recruitmentLabels[team.recruitStatus]);
   if (
@@ -127,7 +127,7 @@ export default async function MyTeamPage() {
               {current.team.auditStatus === "rejected" &&
                 current.team.exception && (
                   <div className="mb-5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-                    <span className="font-semibold">已被下架：</span>
+                    <span className="font-semibold">审核说明：</span>
                     {current.team.exception}
                   </div>
                 )}

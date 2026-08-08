@@ -26,7 +26,7 @@ export default async function TeamsPage({
       <PageHeading
         eyebrow="TEAM HALL"
         title="寻找正在招募的队伍"
-        description="从项目方向、角色需求和技术栈中找到适合你的队伍。"
+        description="这里只展示获得公开授权、审核通过且仍在招募的队伍。"
       />
       <SearchBar defaultValue={q} placeholder="搜索队名或项目方向" />
       {/* ── Section banner (always shown, even at 0 recruiting) ────── */}

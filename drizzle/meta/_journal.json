@@ -64,6 +64,13 @@
       "when": 1786202435694,
       "tag": "0008_lyrical_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786207820186,
+      "tag": "0009_require_profile_reapproval",
+      "breakpoints": true
     }
   ]
 }

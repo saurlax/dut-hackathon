@@ -62,6 +62,7 @@ function ApproveButton({
 }) {
   const boundAction = updateAudit.bind(null, kind, id);
   const moderationRecord = kind === "participant" || kind === "team";
+  const restoring = moderationRecord && status === "rejected";
   const [state, action, pending] = useActionState(
     boundAction,
     initialActionState,
@@ -74,7 +75,7 @@ function ApproveButton({
         <input type="hidden" name="expectedStatus" value={status} />
         <input type="hidden" name="expectedRevision" value={revision} />
         <Button size="sm" variant="outline" pending={pending}>
-          {moderationRecord ? "恢复公开" : "通过"}
+          {restoring ? "恢复并通过" : "通过"}
         </Button>
       </form>
       {!state.ok && <FormMessage state={state} />}
@@ -95,6 +96,7 @@ function RejectDialog({
 }) {
   const boundAction = updateAudit.bind(null, kind, id);
   const moderationRecord = kind === "participant" || kind === "team";
+  const takingDown = moderationRecord && status === "approved";
   const [state, action, pending] = useActionState(
     boundAction,
     initialActionState,
@@ -104,16 +106,16 @@ function RejectDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button type="button" size="sm" variant="destructive">
-          {moderationRecord ? "下架" : "驳回"}
+          {takingDown ? "下架" : "驳回"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {moderationRecord ? "填写下架原因" : "填写驳回原因"}
+            {takingDown ? "填写下架原因" : "填写驳回原因"}
           </DialogTitle>
           <DialogDescription>
-            {moderationRecord
+            {takingDown
               ? "下架后资料不再公开展示；原因会展示给提交人。"
               : "这段说明会展示给提交人，帮助对方修改后重新提交。"}
           </DialogDescription>
@@ -124,7 +126,7 @@ function RejectDialog({
           <input type="hidden" name="expectedRevision" value={revision} />
           <div className="space-y-2">
             <Label htmlFor={`audit-reason-${id}`}>
-              {moderationRecord ? "下架原因" : "驳回原因"}
+              {takingDown ? "下架原因" : "驳回原因"}
             </Label>
             <Textarea
               id={`audit-reason-${id}`}
@@ -143,7 +145,7 @@ function RejectDialog({
               </Button>
             </DialogClose>
             <Button type="submit" variant="destructive" pending={pending}>
-              {moderationRecord ? "确认下架" : "确认驳回"}
+              {takingDown ? "确认下架" : "确认驳回"}
             </Button>
           </DialogFooter>
         </form>

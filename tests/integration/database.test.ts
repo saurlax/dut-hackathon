@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, pool } from "../../src/db/client";
 import {
@@ -79,20 +79,24 @@ async function makeParticipant(
     .insert(users)
     .values({ email: `${id}@example.com`, emailVerified: new Date() })
     .returning();
+  const values: typeof participants.$inferInsert = {
+    userId: user.id,
+    name,
+    phone: "13800000000",
+    email: user.email,
+    school: "DUT",
+    college: "CS",
+    grade: "1",
+    studentId: id,
+    registrationMethod: "暂未确定",
+    ...overrides,
+  };
+  if (values.auditStatus === "approved" && values.approvedRevision == null)
+    values.approvedRevision =
+      typeof values.revision === "number" ? values.revision : 1;
   const [participant] = await db
     .insert(participants)
-    .values({
-      userId: user.id,
-      name,
-      phone: "13800000000",
-      email: user.email,
-      school: "DUT",
-      college: "CS",
-      grade: "1",
-      studentId: id,
-      registrationMethod: "暂未确定",
-      ...overrides,
-    })
+    .values(values)
     .returning();
   return participant;
 }
@@ -101,18 +105,19 @@ async function makeTeam(
   maxSize = 4,
   overrides: Partial<typeof teams.$inferInsert> = {},
 ) {
-  const [team] = await db
-    .insert(teams)
-    .values({
-      name: `Team-${suffix()}`,
-      leaderParticipantId: leaderId,
-      contact: "contact",
-      description: "desc",
-      recruitmentDeadline: "2099-12-31",
-      maxSize,
-      ...overrides,
-    })
-    .returning();
+  const values: typeof teams.$inferInsert = {
+    name: `Team-${suffix()}`,
+    leaderParticipantId: leaderId,
+    contact: "contact",
+    description: "desc",
+    recruitmentDeadline: "2099-12-31",
+    maxSize,
+    ...overrides,
+  };
+  if (values.auditStatus === "approved" && values.approvedRevision == null)
+    values.approvedRevision =
+      typeof values.revision === "number" ? values.revision : 1;
+  const [team] = await db.insert(teams).values(values).returning();
   await db.insert(teamMembers).values({
     teamId: team.id,
     participantId: leaderId,
@@ -448,7 +453,7 @@ describe("PostgreSQL business constraints", () => {
     expect(result.ok).toBe(true);
     expect(stored.email).toBe("contact@example.com");
   });
-  it("auto-approves registration and allows public display without contact", async () => {
+  it("keeps a public registration pending and out of the public pool", async () => {
     const participant = await makeParticipant();
     authUser.id = participant.userId;
 
@@ -473,10 +478,49 @@ describe("PostgreSQL business constraints", () => {
 
     expect(result.ok).toBe(true);
     expect(stored).toMatchObject({
-      auditStatus: "approved",
+      auditStatus: "pending",
       publicDisplay: true,
       publicContact: "",
     });
+    expect(
+      (await publicParticipants(participant.name)).items.some(
+        ({ id }) => id === participant.id,
+      ),
+    ).toBe(false);
+  });
+  it("keeps a newly created public team pending and out of the team hall", async () => {
+    const leader = await makeParticipant("New leader", {
+      auditStatus: "approved",
+    });
+    authUser.id = leader.userId;
+
+    const result = await saveTeam(
+      { ok: false, message: "" },
+      actionForm({
+        name: "New public team",
+        contact: "contact",
+        description: "desc",
+        recruitmentDeadline: "2099-12-31",
+        maxSize: "4",
+        publicDisplay: "on",
+      }),
+    );
+    const [stored] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.leaderParticipantId, leader.id));
+
+    expect(result.ok).toBe(true);
+    expect(stored).toMatchObject({
+      auditStatus: "pending",
+      publicDisplay: true,
+    });
+    expect(stored.publicConsentAt).toBeInstanceOf(Date);
+    expect(
+      (await publicTeams(stored.name)).items.some(
+        ({ team }) => team.id === stored.id,
+      ),
+    ).toBe(false);
   });
   it("uses fail-closed defaults for internal status and team visibility", async () => {
     const leader = await makeParticipant();
@@ -745,7 +789,7 @@ describe("PostgreSQL business constraints", () => {
     expect(storedTeam).toMatchObject({
       recruitStatus: "recruiting",
       publicDisplay: true,
-      auditStatus: "approved",
+      auditStatus: "pending",
     });
     expect(storedTeam.publicConsentAt).toBeInstanceOf(Date);
   });
@@ -860,6 +904,7 @@ describe("PostgreSQL business constraints", () => {
       .from(participants)
       .where(eq(participants.id, participant.id));
     expect(stored).toMatchObject({ auditStatus: "approved", adminNote: "" });
+    expect(stored.approvedRevision).toBe(stored.revision);
   });
   it("keeps private or unaudited member identities out of public team queries", async () => {
     const leader = await makeParticipant("L", {
@@ -1052,6 +1097,202 @@ describe("PostgreSQL business constraints", () => {
       ]),
     );
     expect((await showcase()).items).toHaveLength(1);
+  });
+  it("returns historical auto-approved profiles and teams to pending review", async () => {
+    const approvedParticipant = await makeParticipant("Previously approved", {
+        auditStatus: "approved",
+        revision: 3,
+      }),
+      rejectedParticipant = await makeParticipant("Previously rejected", {
+        auditStatus: "rejected",
+        revision: 5,
+        adminNote: "保留原驳回原因",
+      }),
+      approvedTeam = await makeTeam(approvedParticipant.id, 4, {
+        auditStatus: "approved",
+        revision: 7,
+      });
+
+    const migrationSql = await readFile(
+      new URL(
+        "../../drizzle/0009_require_profile_reapproval.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    for (const table of ["participants", "teams"] as const) {
+      const column = migrationSql.indexOf(
+        `ALTER TABLE "${table}" ADD COLUMN "approved_revision"`,
+      );
+      const guard = migrationSql.indexOf(
+        `CREATE TRIGGER "${table}_review_guard"`,
+      );
+      const backfill = migrationSql.indexOf(`UPDATE "${table}"`);
+      const constraint = migrationSql.indexOf(
+        `ALTER TABLE "${table}" ADD CONSTRAINT`,
+      );
+      expect(column).toBeGreaterThanOrEqual(0);
+      expect(guard).toBeGreaterThan(column);
+      expect(backfill).toBeGreaterThan(guard);
+      expect(constraint).toBeGreaterThan(backfill);
+    }
+    const resetStatements = migrationSql
+      .split("--> statement-breakpoint")
+      .map((statement) => statement.trim())
+      .filter(
+        (statement) =>
+          statement.startsWith('UPDATE "participants"') ||
+          statement.startsWith('UPDATE "teams"'),
+      );
+    expect(resetStatements).toHaveLength(2);
+    for (const statement of resetStatements) await pool.query(statement);
+
+    const [[storedApproved], [storedRejected], [storedTeam]] =
+      await Promise.all([
+        db
+          .select()
+          .from(participants)
+          .where(eq(participants.id, approvedParticipant.id)),
+        db
+          .select()
+          .from(participants)
+          .where(eq(participants.id, rejectedParticipant.id)),
+        db.select().from(teams).where(eq(teams.id, approvedTeam.id)),
+      ]);
+    expect(storedApproved).toMatchObject({
+      auditStatus: "pending",
+      revision: 4,
+      approvedRevision: null,
+      adminNote: "",
+    });
+    expect(storedTeam).toMatchObject({
+      auditStatus: "pending",
+      revision: 8,
+      approvedRevision: null,
+      exception: "",
+    });
+    expect(storedRejected).toMatchObject({
+      auditStatus: "rejected",
+      revision: 5,
+      adminNote: "保留原驳回原因",
+    });
+  });
+  it("prevents legacy writers from bypassing review during a rolling deployment", async () => {
+    const id = suffix();
+    const [legacyUser] = await db
+      .insert(users)
+      .values({ email: `${id}@example.com`, emailVerified: new Date() })
+      .returning();
+    const [legacyParticipant] = await db
+      .insert(participants)
+      .values({
+        userId: legacyUser.id,
+        name: "Legacy participant",
+        phone: "13800000000",
+        email: legacyUser.email,
+        school: "DUT",
+        college: "CS",
+        grade: "1",
+        studentId: id,
+        auditStatus: "approved",
+      })
+      .returning();
+
+    expect(legacyParticipant).toMatchObject({
+      auditStatus: "pending",
+      approvedRevision: null,
+    });
+
+    const participantApproval = await updateAudit(
+      "participant",
+      legacyParticipant.id,
+      { ok: false, message: "" },
+      await auditForm("participant", legacyParticipant.id, "approved"),
+    );
+    expect(participantApproval.ok).toBe(true);
+
+    const [legacyEditedParticipant] = await db
+      .update(participants)
+      .set({
+        bio: "Saved by the old release",
+        auditStatus: "approved",
+        revision: sql`${participants.revision} + 1`,
+      })
+      .where(eq(participants.id, legacyParticipant.id))
+      .returning();
+    expect(legacyEditedParticipant).toMatchObject({
+      auditStatus: "pending",
+      approvedRevision: null,
+    });
+
+    const leader = await makeParticipant("Legacy leader", {
+      auditStatus: "approved",
+    });
+    const successor = await makeParticipant("Legacy successor", {
+      auditStatus: "approved",
+    });
+    const [legacyTeam] = await db
+      .insert(teams)
+      .values({
+        name: "Legacy team",
+        leaderParticipantId: leader.id,
+        contact: "contact",
+        description: "desc",
+        recruitmentDeadline: "2099-12-31",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        auditStatus: "approved",
+      })
+      .returning();
+    expect(legacyTeam).toMatchObject({
+      auditStatus: "pending",
+      approvedRevision: null,
+    });
+
+    expect(
+      (
+        await updateAudit(
+          "team",
+          legacyTeam.id,
+          { ok: false, message: "" },
+          await auditForm("team", legacyTeam.id, "approved"),
+        )
+      ).ok,
+    ).toBe(true);
+    const [legacyEditedTeam] = await db
+      .update(teams)
+      .set({
+        name: "Legacy team edit",
+        auditStatus: "approved",
+        revision: sql`${teams.revision} + 1`,
+      })
+      .where(eq(teams.id, legacyTeam.id))
+      .returning();
+    expect(legacyEditedTeam).toMatchObject({
+      auditStatus: "pending",
+      approvedRevision: null,
+    });
+
+    expect(
+      (
+        await updateAudit(
+          "team",
+          legacyTeam.id,
+          { ok: false, message: "" },
+          await auditForm("team", legacyTeam.id, "approved"),
+        )
+      ).ok,
+    ).toBe(true);
+    const [legacyLeaderTransfer] = await db
+      .update(teams)
+      .set({ leaderParticipantId: successor.id, updatedAt: new Date() })
+      .where(eq(teams.id, legacyTeam.id))
+      .returning();
+    expect(legacyLeaderTransfer).toMatchObject({
+      auditStatus: "pending",
+      approvedRevision: null,
+      revision: legacyEditedTeam.revision + 2,
+    });
   });
   it("blocks duplicate final confirmation unless the previous review was rejected", async () => {
     const leader = await makeParticipant("L"),
@@ -1354,6 +1595,29 @@ describe("PostgreSQL business constraints", () => {
         position: 2,
       },
     ]);
+    const [submission] = await db
+      .insert(submissions)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        projectName: "Legacy approved submission",
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        auditStatus: "approved",
+        materialStatus: "complete",
+        revision: 3,
+        adminNote: "旧审核说明",
+      })
+      .returning();
     await db
       .update(teams)
       .set({ recruitStatus: "completed" })
@@ -1367,26 +1631,40 @@ describe("PostgreSQL business constraints", () => {
 
     expect(result).toMatchObject({ ok: true });
     expect(result.message).toContain("最终确认");
-    const [memberships, confirmations, snapshots, [storedTeam]] =
-      await Promise.all([
-        db
-          .select()
-          .from(teamMembers)
-          .where(eq(teamMembers.participantId, member.id)),
-        db
-          .select()
-          .from(teamConfirmations)
-          .where(eq(teamConfirmations.teamId, team.id)),
-        db
-          .select()
-          .from(confirmationMembers)
-          .where(eq(confirmationMembers.confirmationId, confirmation.id)),
-        db.select().from(teams).where(eq(teams.id, team.id)),
-      ]);
+    const [
+      memberships,
+      confirmations,
+      snapshots,
+      [storedTeam],
+      [storedSubmission],
+    ] = await Promise.all([
+      db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.participantId, member.id)),
+      db
+        .select()
+        .from(teamConfirmations)
+        .where(eq(teamConfirmations.teamId, team.id)),
+      db
+        .select()
+        .from(confirmationMembers)
+        .where(eq(confirmationMembers.confirmationId, confirmation.id)),
+      db.select().from(teams).where(eq(teams.id, team.id)),
+      db.select().from(submissions).where(eq(submissions.id, submission.id)),
+    ]);
     expect(memberships).toEqual([]);
     expect(confirmations).toEqual([]);
     expect(snapshots).toEqual([]);
     expect(storedTeam.recruitStatus).toBe("recruiting");
+    expect(storedSubmission).toMatchObject({
+      publicDisplay: false,
+      publicConsentAt: null,
+      auditStatus: "pending",
+      materialStatus: "pending",
+      revision: 4,
+      adminNote: "",
+    });
   });
   it("requires a fresh final snapshot and preserves full status after legacy consent", async () => {
     const leader = await makeParticipant("L"),
@@ -1458,6 +1736,12 @@ describe("PostgreSQL business constraints", () => {
       ])
       .returning();
     authUser.id = leader.userId;
+    const staleTeamReview = await auditForm(
+      "team",
+      team.id,
+      "rejected",
+      "旧页面中的队伍名单",
+    );
 
     const results = await Promise.all(
       applications.map((application) =>
@@ -1484,6 +1768,20 @@ describe("PostgreSQL business constraints", () => {
       .map(({ status }) => status)
       .sort();
     expect(states).toEqual(["approved", "rejected"]);
+    const [storedTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, team.id));
+    expect(storedTeam.revision).toBe(team.revision + 1);
+
+    const staleDecision = await updateAudit(
+      "team",
+      team.id,
+      { ok: false, message: "" },
+      staleTeamReview,
+    );
+    expect(staleDecision.ok).toBe(false);
+    expect(staleDecision.message).toContain("记录已变化");
   });
   it("keeps the confirmation snapshot consistent with a competing approval", async () => {
     const leader = await makeParticipant("L", {
@@ -2212,6 +2510,45 @@ describe("PostgreSQL business constraints", () => {
     expect(alreadyLeader.ok).toBe(false);
     expect(alreadyLeader.message).toContain("已经是队长");
   });
+  it("returns a public team to pending when its leader changes", async () => {
+    const leader = await makeParticipant("L", {
+        auditStatus: "approved",
+        publicDisplay: true,
+      }),
+      successor = await makeParticipant("S", {
+        auditStatus: "approved",
+        publicDisplay: true,
+      }),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        revision: 6,
+      });
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: successor.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    authUser.id = leader.userId;
+
+    const result = await changeTeamLeader(
+      { ok: false, message: "" },
+      actionForm({ participantNumber: String(successor.participantNumber) }),
+    );
+    const [stored] = await db.select().from(teams).where(eq(teams.id, team.id));
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("重新进入审核");
+    expect(stored).toMatchObject({
+      leaderParticipantId: successor.id,
+      auditStatus: "pending",
+      revision: 7,
+      exception: "",
+    });
+    expect(await publicTeamDetail(team.id)).toBeNull();
+  });
   it("lets the first team's approval win and blocks the second", async () => {
     const leader1 = await makeParticipant("L1", {
       auditStatus: "approved",
@@ -2366,10 +2703,12 @@ describe("PostgreSQL business constraints", () => {
       adminNote: "材料不全",
     });
   });
-  it("keeps registration approved when the participant edits their profile", async () => {
+  it("returns an approved registration to pending after any profile edit", async () => {
     const participant = await makeParticipant("P", {
       auditStatus: "approved",
       publicDisplay: true,
+      revision: 3,
+      adminNote: "旧审核说明",
     });
     authUser.id = participant.userId;
     const result = await saveRegistration(
@@ -2383,6 +2722,7 @@ describe("PostgreSQL business constraints", () => {
         grade: participant.grade,
         studentId: participant.studentId,
         registrationMethod: "暂未确定",
+        publicDisplay: "on",
       }),
     );
     expect(result.ok).toBe(true);
@@ -2390,9 +2730,17 @@ describe("PostgreSQL business constraints", () => {
       .select()
       .from(participants)
       .where(eq(participants.id, participant.id));
-    expect(stored).toMatchObject({ auditStatus: "approved", adminNote: "" });
+    expect(stored).toMatchObject({
+      auditStatus: "pending",
+      publicDisplay: true,
+      revision: 4,
+      adminNote: "",
+    });
+    expect(await publicParticipants(participant.name)).toMatchObject({
+      items: [],
+    });
   });
-  it("tells the user when an edited rejected registration awaits admin restore", async () => {
+  it("resubmits an edited rejected registration for review", async () => {
     const participant = await makeParticipant("P", {
       auditStatus: "rejected",
       publicDisplay: true,
@@ -2415,7 +2763,7 @@ describe("PostgreSQL business constraints", () => {
     );
 
     expect(result).toMatchObject({ ok: true });
-    expect(result.message).toContain("管理员恢复");
+    expect(result.message).toContain("审核");
     const [stored] = await db
       .select()
       .from(participants)
@@ -2425,7 +2773,41 @@ describe("PostgreSQL business constraints", () => {
       publicDisplay: true,
     });
   });
-  it("tells the user when an edited rejected team awaits admin restore", async () => {
+  it("returns an approved team to pending after a team profile edit", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+      revision: 4,
+      exception: "旧审核说明",
+    });
+    authUser.id = leader.userId;
+
+    const result = await saveTeam(
+      { ok: false, message: "" },
+      actionForm({
+        name: `${team.name}-edited`,
+        contact: team.contact,
+        description: team.description,
+        recruitmentDeadline: "2099-12-31",
+        maxSize: "4",
+        publicDisplay: "on",
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message).toContain("审核");
+    const [stored] = await db.select().from(teams).where(eq(teams.id, team.id));
+    expect(stored).toMatchObject({
+      auditStatus: "pending",
+      publicDisplay: true,
+      revision: 5,
+      exception: "",
+    });
+    expect(await publicTeamDetail(team.id)).toBeNull();
+  });
+  it("resubmits an edited rejected team for review", async () => {
     const leader = await makeParticipant("L", { auditStatus: "approved" });
     const team = await makeTeam(leader.id, 4, {
       auditStatus: "rejected",
@@ -2447,7 +2829,7 @@ describe("PostgreSQL business constraints", () => {
     );
 
     expect(result).toMatchObject({ ok: true });
-    expect(result.message).toContain("管理员恢复");
+    expect(result.message).toContain("审核");
     const [stored] = await db.select().from(teams).where(eq(teams.id, team.id));
     expect(stored).toMatchObject({
       auditStatus: "pending",

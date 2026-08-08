@@ -14,6 +14,7 @@ test("magic-link user completes registration and creates a team", async ({
   const runKey = `${test.info().project.name}-${Date.now()}`;
   const email = `e2e-${runKey}@example.com`;
   const participantName = `E2E ${runKey}`;
+  const teamName = `E2E Team ${runKey}`;
   const publicContact = `微信 e2e-${runKey}`;
   // Full magic-link flow (request -> poll Mailpit -> callback -> register ->
   // create team) needs more headroom than the default 30s test budget,
@@ -76,41 +77,33 @@ test("magic-link user completes registration and creates a team", async ({
   await page.getByLabel("我是校内学生").check();
   await page.getByLabel("同意在找队友页面公开展示").check();
   await page.getByRole("button", { name: "提交报名" }).click();
-  await expect(page.getByRole("status")).toContainText("已保存");
+  await expect(page.getByRole("status")).toContainText("提交审核");
+
+  await page.goto("/my-registration");
+  await expect(page.getByText("待审核", { exact: true })).toBeVisible();
 
   await page.goto(`/browse-pool?q=${encodeURIComponent(participantName)}`);
   await dismissAnnouncementIfPresent(page);
-  await page
-    .getByRole("button", { name: `查看 ${participantName} 的公开资料` })
-    .click();
-  const profile = page.getByRole("dialog");
-  await expect(profile).toBeVisible();
-  await expect(profile.getByText(/P\d{4} · 完整公开资料/)).toBeVisible();
-  await expect(profile.getByText("校内学生")).toBeVisible();
-  await expect(profile.getByText("前端", { exact: true })).toBeVisible();
-  await expect(profile.getByText("React", { exact: true })).toBeVisible();
-  await expect(profile.getByText("前端开发", { exact: true })).toBeVisible();
-  await expect(profile.getByText("每周 20 小时")).toBeVisible();
-  await expect(profile.getByText("全栈开发")).toBeVisible();
-  await expect(profile.getByText("完成过端到端项目")).toBeVisible();
-  await expect(profile.getByText("希望寻找互补的黑客松伙伴")).toBeVisible();
-  await expect(profile.getByText(publicContact)).toBeVisible();
   await expect(
-    profile.getByRole("link", { name: /example.com\/e2e-portfolio/ }),
-  ).toHaveAttribute("href", "https://example.com/e2e-portfolio");
-  await expect(profile).not.toContainText("13800000000");
-  await expect(profile).not.toContainText(email);
-  await expect(profile).not.toContainText(values.学号);
-  await profile.getByRole("button", { name: "关闭" }).click();
+    page.getByRole("button", {
+      name: `查看 ${participantName} 的公开资料`,
+    }),
+  ).toHaveCount(0);
 
   await page.goto("/create");
   await dismissAnnouncementIfPresent(page);
-  await page.getByLabel("队伍名称").fill("E2E Team");
+  await page.getByLabel("队伍名称").fill(teamName);
   await page.getByLabel("公开联系渠道").fill(email);
   await page.getByLabel("招募截止日期").fill("2099-12-31");
   await page.getByLabel("队伍介绍").fill("End-to-end test team");
+  await page.getByLabel("我同意公开队伍资料、联系渠道和已授权成员信息").check();
   await page.getByRole("button", { name: "创建队伍" }).click();
-  await expect(page.getByRole("status")).toContainText("已保存");
+  await expect(page.getByRole("status")).toContainText("提交审核");
+
+  await page.goto("/my-team");
+  await expect(page.getByText("待审核", { exact: true })).toBeVisible();
+  await page.goto(`/browse-teams?q=${encodeURIComponent(teamName)}`);
+  await expect(page.getByText(teamName, { exact: true })).toHaveCount(0);
 });
 
 test("magic-link sending is rate limited per IP for one minute", async ({
