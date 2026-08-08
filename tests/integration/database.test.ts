@@ -562,6 +562,11 @@ describe("PostgreSQL business constraints", () => {
         publicDisplay: true,
         publicConsentAt: new Date(),
       });
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "approved",
+    });
     const [submission] = await db
       .insert(submissions)
       .values({

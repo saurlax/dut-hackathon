@@ -406,11 +406,13 @@ export async function showcase(keyword = "") {
     })
     .from(submissions)
     .innerJoin(teams, eq(submissions.teamId, teams.id))
+    .innerJoin(teamConfirmations, eq(teamConfirmations.teamId, teams.id))
     .where(
       and(
         eq(submissions.auditStatus, "approved"),
         eq(submissions.publicDisplay, true),
         isNotNull(submissions.publicConsentAt),
+        eq(teamConfirmations.auditStatus, "approved"),
         eq(teams.auditStatus, "approved"),
         eq(teams.publicDisplay, true),
         isNotNull(teams.publicConsentAt),
@@ -427,12 +429,14 @@ export async function publicSubmissionDetail(id: string) {
         .select({ submission: publicSubmissionFields, teamName: teams.name })
         .from(submissions)
         .innerJoin(teams, eq(submissions.teamId, teams.id))
+        .innerJoin(teamConfirmations, eq(teamConfirmations.teamId, teams.id))
         .where(
           and(
             eq(submissions.id, id),
             eq(submissions.auditStatus, "approved"),
             eq(submissions.publicDisplay, true),
             isNotNull(submissions.publicConsentAt),
+            eq(teamConfirmations.auditStatus, "approved"),
             eq(teams.auditStatus, "approved"),
             eq(teams.publicDisplay, true),
             isNotNull(teams.publicConsentAt),
