@@ -983,4 +983,43 @@ describe("PostgreSQL business constraints", () => {
       publicDisplay: false,
     });
   });
+  it("editing team details does not silently resume a paused recruitment", async () => {
+    const leader = await makeParticipant("L", { auditStatus: "approved" });
+    const team = await makeTeam(leader.id, 4, {
+      auditStatus: "approved",
+      publicDisplay: true,
+      publicConsentAt: new Date(),
+      recruitStatus: "recruiting",
+    });
+    authUser.id = leader.userId;
+
+    await closeMyTeam({ ok: false, message: "" }, new FormData());
+    const [paused] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, team.id));
+    expect(paused.recruitStatus).toBe("paused");
+
+    // Editing details (here: the description) must not flip a paused team back
+    // to recruiting — that would silently relist it in the public hall.
+    const edited = await saveTeam(
+      { ok: false, message: "" },
+      actionForm({
+        name: team.name,
+        contact: team.contact,
+        description: "edited description",
+        recruitmentDeadline: "2099-12-31",
+        maxSize: "4",
+        publicDisplay: "on",
+      }),
+    );
+    expect(edited.ok).toBe(true);
+    const [after] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, team.id));
+    expect(after.recruitStatus).toBe("paused");
+    expect(after.description).toBe("edited description");
+    expect(after.publicDisplay).toBe(true);
+  });
 });

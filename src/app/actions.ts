@@ -258,11 +258,16 @@ export async function saveTeam(
         const currentSize = await teamSize(tx, existing.id);
         if (currentSize > teamValues.maxSize)
           fail(`当前已有 ${currentSize} 名成员，不能缩减到更小人数`);
-        const recruitStatus = !isRecruitmentOpen(teamValues.recruitmentDeadline)
-          ? "paused"
-          : currentSize >= teamValues.maxSize
+        // Preserve the leader's recruitment intent: editing details must not
+        // silently resume a paused team. The deadline is already validated as
+        // in the future at the top of this action, so the only states to
+        // reconcile here are size-driven fullness and an explicit pause.
+        const recruitStatus =
+          currentSize >= teamValues.maxSize
             ? "full"
-            : "recruiting";
+            : existing.recruitStatus === "paused"
+              ? "paused"
+              : "recruiting";
         await tx
           .update(teams)
           .set({
