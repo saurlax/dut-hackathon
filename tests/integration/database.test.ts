@@ -30,6 +30,7 @@ import {
 } from "../../src/lib/queries";
 import {
   confirmationMembers,
+  emailSendLimits,
   participants,
   submissions,
   teamApplications,
@@ -39,6 +40,11 @@ import {
   users,
   verificationTokens,
 } from "../../src/db/schema";
+import {
+  consumeEmailRateLimit,
+  EmailRateLimitError,
+  EMAIL_RATE_LIMIT_MS,
+} from "../../src/lib/email-rate-limit";
 
 const authUser = vi.hoisted(() => ({ id: "", email: "test@example.com" }));
 
@@ -131,6 +137,7 @@ describe("PostgreSQL business constraints", () => {
     vi.clearAllMocks();
     authUser.id = "";
     await db.delete(verificationTokens);
+    await db.delete(emailSendLimits);
     await db.delete(teamApplications);
     await db.delete(teamMembers);
     await db.delete(teams);
@@ -174,6 +181,66 @@ describe("PostgreSQL business constraints", () => {
         registrationMethod: "暂未确定",
       }),
     ).rejects.toThrow();
+  });
+  it("allows one magic-link send per IP per rolling minute", async () => {
+    const secret = "rate-limit-test-secret-0123456789abcdef";
+    const first = new Date("2026-01-01T00:00:00.000Z");
+    await consumeEmailRateLimit("203.0.113.10", first, secret);
+
+    await expect(
+      consumeEmailRateLimit(
+        "203.0.113.10",
+        new Date("2026-01-01T00:00:30.000Z"),
+        secret,
+      ),
+    ).rejects.toBeInstanceOf(EmailRateLimitError);
+
+    await consumeEmailRateLimit(
+      "203.0.113.10",
+      new Date(first.getTime() + EMAIL_RATE_LIMIT_MS + 1),
+      secret,
+    );
+  });
+  it("tracks different IPs independently", async () => {
+    const secret = "rate-limit-test-secret-0123456789abcdef";
+    const now = new Date("2026-01-01T00:00:00.000Z");
+
+    await consumeEmailRateLimit("203.0.113.10", now, secret);
+    await consumeEmailRateLimit("198.51.100.20", now, secret);
+  });
+  it("stores only a hashed IP in the rate limit table", async () => {
+    const secret = "rate-limit-test-secret-0123456789abcdef";
+    await consumeEmailRateLimit("203.0.113.10", new Date(), secret);
+
+    const [row] = await db
+      .select()
+      .from(emailSendLimits)
+      .where(eq(emailSendLimits.ipHash, "203.0.113.10"));
+    expect(row).toBeUndefined();
+
+    const [stored] = await db.select().from(emailSendLimits);
+    expect(stored?.ipHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(stored?.ipHash).not.toContain("203.0.113.10");
+  });
+  it("allows only one concurrent sender for the same IP", async () => {
+    const secret = "rate-limit-test-secret-0123456789abcdef";
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    const attempts = await Promise.allSettled([
+      consumeEmailRateLimit("203.0.113.11", now, secret),
+      consumeEmailRateLimit("203.0.113.11", now, secret),
+      consumeEmailRateLimit("203.0.113.11", now, secret),
+    ]);
+
+    expect(
+      attempts.filter((attempt) => attempt.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      attempts.filter(
+        (attempt) =>
+          attempt.status === "rejected" &&
+          attempt.reason instanceof EmailRateLimitError,
+      ),
+    ).toHaveLength(2);
   });
   it("stores the contact email entered in the registration form", async () => {
     const participant = await makeParticipant();

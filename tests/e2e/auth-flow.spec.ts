@@ -5,6 +5,11 @@ test("magic-link user completes registration and creates a team", async ({
   page,
   request,
 }) => {
+  const ip =
+    test.info().project.name === "mobile"
+      ? `203.0.113.${Math.floor(Math.random() * 54) + 201}`
+      : `203.0.113.${Math.floor(Math.random() * 200) + 1}`;
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": ip });
   const email = `e2e-${Date.now()}@example.com`;
   // Full magic-link flow (request -> poll Mailpit -> callback -> register ->
   // create team) needs more headroom than the default 30s test budget,
@@ -63,4 +68,27 @@ test("magic-link user completes registration and creates a team", async ({
   await page.getByLabel("队伍介绍").fill("End-to-end test team");
   await page.getByRole("button", { name: "创建队伍" }).click();
   await expect(page.getByRole("status")).toContainText("已保存");
+});
+
+test("magic-link sending is rate limited per IP for one minute", async ({
+  page,
+}) => {
+  const ip =
+    test.info().project.name === "mobile"
+      ? `198.51.100.${Math.floor(Math.random() * 54) + 1}`
+      : `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": ip });
+  const email = `e2e-rate-${Date.now()}@example.com`;
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱地址").fill(email);
+  await page.getByRole("button", { name: "发送登录链接" }).click();
+  await page.waitForURL(/login\/verify/);
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱地址").fill(email);
+  await page.getByRole("button", { name: "发送登录链接" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "发送太频繁，请一分钟后再试",
+  );
 });

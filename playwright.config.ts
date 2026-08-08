@@ -10,11 +10,11 @@ export default defineConfig({
   reporter: "html",
   use: { baseURL, trace: "on-first-retry" },
   webServer: {
-    command: `npm run dev -- -p ${port}`,
+    command: process.env.E2E_SERVER_COMMAND ?? `npm run dev -- -p ${port}`,
     url: baseURL,
-    env: { ...process.env, AUTH_URL: baseURL },
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
+    env: { ...process.env, AUTH_URL: baseURL, TRUST_PROXY: "true" },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

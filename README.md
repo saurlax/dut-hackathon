@@ -61,8 +61,9 @@ Copy-Item .env.example .env.local
 | `EMAIL_SERVER_PASSWORD` | SMTP 密码                                                                                                 |
 | `EMAIL_FROM`            | 登录邮件发件人                                                                                            |
 | `ADMIN_EMAILS`          | 逗号分隔的初始管理员邮箱列表                                                                              |
+| `TRUST_PROXY`           | 是否信任反向代理的客户端 IP，Zeabur 设为 `true`  |
 
-生产环境必须使用随机生成的 `AUTH_SECRET` 和真实 SMTP 凭据。用户完成邮箱验证后即可创建账户；`ADMIN_EMAILS` 中的账户会在登录时提升为管理员。已有管理员还可以在管理后台按邮箱新增管理员，数据库中已授予的管理员角色不会因邮箱不在 `ADMIN_EMAILS` 中而被降级。
+生产环境必须使用随机生成的 `AUTH_SECRET` 和真实 SMTP 凭据，并将 `TRUST_PROXY` 设为 `true`。用户完成邮箱验证后即可创建账户；`ADMIN_EMAILS` 中的账户会在登录时提升为管理员。已有管理员还可以在管理后台按邮箱新增管理员，数据库中已授予的管理员角色不会因邮箱不在 `ADMIN_EMAILS` 中而被降级。
 
 ## 数据库
 
@@ -113,13 +114,15 @@ npm run test:e2e
 - 管理员驳回报名、队伍、最终确认或作品时必须填写原因，提交人可以在对应页面查看并修改。
 - 管理员权限始终在服务端校验，前端按钮可见性不作为安全边界。
 - 只有当前管理员可以在后台新增或移除管理员；尚未注册的邮箱会预创建账户，并在首次魔法链接登录后继续保留管理员角色。移除管理员受三道保护：不能移除自己、不能移除最后一名管理员、不能移除 `ADMIN_EMAILS` 中的种子管理员（后者需改环境变量）。
+- 邮箱魔法链接按客户端 IP 滚动 60 秒限流一次；发送请求即使 SMTP 失败也计入额度，数据库只保存由 `AUTH_SECRET` 派生的 IP 哈希。
 
 ## Zeabur 部署
 
 1. 在 Zeabur 中从 Git 仓库创建应用服务，平台会自动识别 Next.js。
 2. 创建 PostgreSQL 服务，并将连接字符串映射到 `DATABASE_URL`。
 3. 配置全部生产环境变量，将 `AUTH_URL` 设置为实际 HTTPS 域名。
-4. 执行 `npm run build`；构建前会自动应用尚未执行的数据库 migration。
-5. 访问 `/api/health` 检查应用和数据库连接状态。
+4. 将 `TRUST_PROXY` 设置为 `true`，让限流读取 Zeabur 代理提供的客户端 IP。
+5. 执行 `npm run build`；构建前会自动应用尚未执行的数据库 migration。
+6. 访问 `/api/health` 检查应用和数据库连接状态。
 
 构建命令为 `npm run build`，启动命令为 `npm start`。构建服务必须能够连接 PostgreSQL，且数据库账户需要具备执行 migration 的权限。应用使用 Next.js standalone 输出，并会读取平台注入的 `PORT`。

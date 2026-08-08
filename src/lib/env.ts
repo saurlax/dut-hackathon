@@ -10,6 +10,7 @@ const envSchema = z.object({
   EMAIL_SERVER_PASSWORD: z.string().default(""),
   EMAIL_FROM: z.string().email(),
   ADMIN_EMAILS: z.string().default(""),
+  TRUST_PROXY: z.enum(["true", "false"]).default("false"),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
