@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeaderForm } from "@/components/forms/leader-form";
-import { ApplicationReviewButtons } from "@/components/application-review-buttons";
 import { MembershipActions } from "@/components/membership-actions";
+import { ReceivedApplicationCard } from "@/components/received-application-card";
 import { RecruitmentControl } from "@/components/recruitment-control";
 
 const recruitmentLabels = {
@@ -224,24 +224,11 @@ export default async function MyTeamPage() {
           <div className="mt-4 space-y-3">
             {received.length ? (
               received.map(({ application, participant }) => (
-                <div
+                <ReceivedApplicationCard
                   key={application.id}
-                  className="rounded-lg border border-primary/15 bg-white/75 p-4 shadow-xs"
-                >
-                  <div className="flex justify-between">
-                    <p className="font-medium">
-                      {participant.name} ·{" "}
-                      {displayNumber("P", participant.participantNumber)}
-                    </p>
-                    <Badge variant="outline">{application.status}</Badge>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {application.message || "未填写留言"}
-                  </p>
-                  {application.status === "pending" && (
-                    <ApplicationReviewButtons applicationId={application.id} />
-                  )}
-                </div>
+                  application={application}
+                  participant={participant}
+                />
               ))
             ) : (
               <p className="text-sm text-muted-foreground">暂无申请。</p>

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/auth";
-import { logout } from "@/app/actions";
+import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogIn, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { LogIn, ShieldCheck, UserRound } from "lucide-react";
 
 const publicLinks = [
   ["/", "首页", "00"],
@@ -102,14 +102,9 @@ export async function SiteHeader() {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <form action={logout}>
-                <DropdownMenuItem asChild>
-                  <button className="w-full">
-                    <LogOut />
-                    退出登录
-                  </button>
-                </DropdownMenuItem>
-              </form>
+              <DropdownMenuItem asChild>
+                <LogoutButton />
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
