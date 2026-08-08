@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Link } from "next-view-transitions";
 import { auth } from "@/auth";
 import { LogoutButton } from "@/components/logout-button";
+import { SiteNavigation } from "@/components/site-navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,13 +13,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogIn, ShieldCheck, UserRound } from "lucide-react";
-
-const publicLinks = [
-  ["/", "首页", "00"],
-  ["/browse-teams", "队伍大厅", "01"],
-  ["/browse-pool", "找队友", "02"],
-  ["/showcase", "作品展示", "03"],
-] as const;
 
 const accountLinks = [
   ["/register", "报名资料"],
@@ -60,21 +54,7 @@ export async function SiteHeader() {
             </span>
           </span>
         </Link>
-        <nav className="hidden items-center gap-6 md:flex">
-          {publicLinks.map(([href, label, index]) => (
-            <Link
-              key={href}
-              href={href}
-              className="group relative flex items-center gap-2 px-1 py-5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <span className="label-mono text-[10px] text-primary/70">
-                {index}
-              </span>
-              <span>{label}</span>
-              <span className="brand-gradient absolute -bottom-px left-0 h-0.5 w-0 transition-all duration-200 group-hover:w-full" />
-            </Link>
-          ))}
-        </nav>
+        <SiteNavigation />
         {session?.user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -116,20 +96,9 @@ export async function SiteHeader() {
           </Button>
         )}
       </div>
-      <nav className="mx-auto flex max-w-6xl items-center gap-5 overflow-x-auto border-t border-primary/10 px-4 md:hidden">
-        {publicLinks.map(([href, label, index]) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex shrink-0 items-center gap-1.5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <span className="label-mono text-[9px] text-primary/70">
-              {index}
-            </span>
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <div className="md:hidden">
+        <SiteNavigation mobile />
+      </div>
     </header>
   );
 }
