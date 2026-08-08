@@ -9,7 +9,9 @@ import {
   resumeMyTeam,
   respondToMembership,
   reviewTeamApplication,
+  requestMagicLink,
   saveRegistration,
+  saveSubmission,
   saveTeam,
   submitConfirmation,
   updateAudit,
@@ -32,6 +34,7 @@ import {
   teamMembers,
   teams,
   users,
+  verificationTokens,
 } from "../../src/db/schema";
 
 const authUser = vi.hoisted(() => ({ id: "", email: "test@example.com" }));
@@ -109,6 +112,7 @@ describe("PostgreSQL business constraints", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     authUser.id = "";
+    await db.delete(verificationTokens);
     await db.delete(teamApplications);
     await db.delete(teamMembers);
     await db.delete(teams);
@@ -118,6 +122,25 @@ describe("PostgreSQL business constraints", () => {
   afterAll(async () => {
     await pool.end();
   });
+  it("rate limits magic link requests with unexpired tokens", async () => {
+    const email = "rate-limit@example.com";
+    await db.insert(verificationTokens).values(
+      Array.from({ length: 5 }, (_, index) => ({
+        identifier: email,
+        token: `rate-${index}`,
+        expires: new Date(Date.now() + 60_000),
+      })),
+    );
+
+    const result = await requestMagicLink(
+      { ok: false, message: "" },
+      actionForm({ email: "rate-limit\uFF20example.com", callbackUrl: "/" }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain("频繁");
+  });
+
   it("allows only one participant profile per user", async () => {
     const p = await makeParticipant();
     await expect(
@@ -539,6 +562,11 @@ describe("PostgreSQL business constraints", () => {
         publicDisplay: true,
         publicConsentAt: new Date(),
       });
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "approved",
+    });
     const [submission] = await db
       .insert(submissions)
       .values({
@@ -627,6 +655,132 @@ describe("PostgreSQL business constraints", () => {
       .where(eq(teamConfirmations.teamId, team.id));
     expect(resubmitted.ok).toBe(true);
     expect(stored).toMatchObject({ auditStatus: "pending", exception: "" });
+  });
+  it("blocks saving a submission while the final confirmation is rejected", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id);
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "rejected",
+      exception: "请重新核对成员",
+    });
+    authUser.id = leader.userId;
+
+    const result = await saveSubmission(
+      { ok: false, message: "" },
+      actionForm({
+        projectName: "Project",
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain("最终确认被驳回");
+  });
+  it("withdraws public submission visibility when final confirmation is rejected", async () => {
+    const leader = await makeParticipant("L"),
+      team = await makeTeam(leader.id, 4, {
+        auditStatus: "approved",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+      });
+    const [confirmation] = await db
+      .insert(teamConfirmations)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        auditStatus: "approved",
+      })
+      .returning();
+    const [submission] = await db
+      .insert(submissions)
+      .values({
+        teamId: team.id,
+        submittedById: leader.id,
+        projectName: "Visible before rejection",
+        track: "AI",
+        oneLiner: "x",
+        background: "x",
+        problemSolved: "x",
+        coreFeatures: "x",
+        techApproach: "x",
+        innovation: "x",
+        applicationValue: "x",
+        usageGuide: "x",
+        publicDisplay: true,
+        publicConsentAt: new Date(),
+        auditStatus: "approved",
+      })
+      .returning();
+
+    const result = await updateAudit(
+      "confirmation",
+      confirmation.id,
+      { ok: false, message: "" },
+      actionForm({ decision: "rejected", reason: "阵容有误" }),
+    );
+
+    expect(result.ok).toBe(true);
+    const [stored] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, submission.id));
+    expect(stored).toMatchObject({
+      publicDisplay: false,
+      publicConsentAt: null,
+      auditStatus: "pending",
+    });
+    expect(await showcase()).toEqual([]);
+  });
+  it("lets a member leave after the final confirmation is rejected", async () => {
+    const leader = await makeParticipant("L"),
+      member = await makeParticipant("M"),
+      team = await makeTeam(leader.id);
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      participantId: member.id,
+      position: 2,
+      consentedAt: new Date(),
+    });
+    await db.insert(teamConfirmations).values({
+      teamId: team.id,
+      submittedById: leader.id,
+      auditStatus: "rejected",
+      exception: "请重新核对成员",
+    });
+    authUser.id = member.userId;
+
+    const result = await respondToMembership(
+      { ok: false, message: "" },
+      actionForm({ decision: "leave" }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(
+      (
+        await db
+          .select()
+          .from(teamMembers)
+          .where(eq(teamMembers.participantId, member.id))
+      ).length,
+    ).toBe(0);
+    expect(
+      (
+        await db
+          .select()
+          .from(teamConfirmations)
+          .where(eq(teamConfirmations.teamId, team.id))
+      ).length,
+    ).toBe(0);
   });
   it("lets a legacy unconsented member invalidate an old final snapshot", async () => {
     const leader = await makeParticipant("L"),

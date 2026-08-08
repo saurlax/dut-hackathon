@@ -16,6 +16,15 @@ export function normalizeParticipantNumber(value: string) {
   return normalized;
 }
 
+export function normalizeLoginEmail(value: string): string | null {
+  const normalized = value.normalize("NFKC").toLowerCase().trim();
+  if (!normalized || normalized.includes('"')) return null;
+  const [local, ...domainParts] = normalized.split("@");
+  if (!local || domainParts.length !== 1) return null;
+  const domain = domainParts[0].split(",")[0];
+  return domain ? `${local}@${domain}` : null;
+}
+
 export function eventDate(date = new Date()) {
   return new Date(date.getTime() + 8 * 60 * 60 * 1000)
     .toISOString()
@@ -24,6 +33,16 @@ export function eventDate(date = new Date()) {
 
 export function isRecruitmentOpen(deadline: string, date = new Date()) {
   return deadline >= eventDate(date);
+}
+
+export function isSafeHttpUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const protocol = new URL(value.trim()).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function hasPublicContact(value: unknown): boolean {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafeHttpUrl } from "@/lib/domain";
 
 const required = (label: string, max = 200) =>
   z.string().trim().min(1, `${label}不能为空`).max(max);
@@ -37,7 +38,13 @@ export const participantSchema = z
     projectExperience: z.string().trim().max(1000).default(""),
     bio: z.string().trim().max(500).default(""),
     portfolioUrl: z
-      .union([z.literal(""), z.string().url("请输入有效链接")])
+      .union([
+        z.literal(""),
+        z
+          .string()
+          .url("请输入有效链接")
+          .refine(isSafeHttpUrl, "仅支持 http:// 或 https:// 链接"),
+      ])
       .default(""),
     availableTime: z.string().trim().max(100).default(""),
     expectedTracks: stringList,
@@ -102,7 +109,13 @@ export const auditDecisionSchema = z
   });
 
 const optionalUrl = z
-  .union([z.literal(""), z.string().url("请输入有效链接")])
+  .union([
+    z.literal(""),
+    z
+      .string()
+      .url("请输入有效链接")
+      .refine(isSafeHttpUrl, "仅支持 http:// 或 https:// 链接"),
+  ])
   .default("");
 export const submissionSchema = z.object({
   projectName: required("作品名称", 100),

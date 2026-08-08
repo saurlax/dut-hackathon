@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/authz";
 import {
   confirmationForTeam,
@@ -8,6 +9,7 @@ import { PageHeading } from "@/components/page-heading";
 import { SubmissionForm } from "@/components/forms/submission-form";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const auditLabels = {
   pending: "等待审核",
@@ -54,6 +56,23 @@ export default async function SubmissionPage() {
           title="尚未最终确认"
           description="请先在最终确认页面提交参赛阵容。"
         />
+      </>
+    );
+  if (confirmation.confirmation.auditStatus === "rejected")
+    return (
+      <>
+        <PageHeading
+          eyebrow="SUBMISSION"
+          title="作品提交"
+          description="最终确认通过后才能保存作品。"
+        />
+        <EmptyState
+          title="最终确认未通过"
+          description="请先按驳回原因修改并重新提交最终确认。"
+        />
+        <Button className="mt-4" asChild>
+          <Link href="/final-confirmation">前往重新提交</Link>
+        </Button>
       </>
     );
   return (

@@ -1,8 +1,9 @@
 "use server";
 
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, gt, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import {
@@ -14,10 +15,11 @@ import {
   teamMembers,
   teams,
   users,
+  verificationTokens,
 } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/authz";
 import type { ActionState } from "@/lib/domain";
-import { isRecruitmentOpen } from "@/lib/domain";
+import { isRecruitmentOpen, normalizeLoginEmail } from "@/lib/domain";
 import {
   applicationSchema,
   auditDecisionSchema,
@@ -133,11 +135,15 @@ async function teamSize(tx: Transaction, teamId: string) {
 
 async function assertTeamMutable(tx: Transaction, teamId: string) {
   const confirmation = await tx
-    .select({ id: teamConfirmations.id })
+    .select({
+      id: teamConfirmations.id,
+      auditStatus: teamConfirmations.auditStatus,
+    })
     .from(teamConfirmations)
     .where(eq(teamConfirmations.teamId, teamId))
     .limit(1);
-  if (confirmation.length) fail("最终确认后不能修改队伍");
+  if (confirmation.length && confirmation[0].auditStatus !== "rejected")
+    fail("最终确认后不能修改队伍");
 }
 
 function assertTeamAcceptsApplications(
@@ -176,15 +182,27 @@ export async function requestMagicLink(
   _state: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "")
-    .trim()
-    .toLowerCase();
+  const email = normalizeLoginEmail(String(formData.get("email") ?? ""));
   const callbackUrl = String(formData.get("callbackUrl") ?? "/");
-  if (!/^\S+@\S+\.\S+$/.test(email))
-    return { ok: false, message: "请输入有效邮箱" };
+  if (!email) return { ok: false, message: "请输入有效邮箱" };
+  const recentTokens = await db
+    .select({ value: count() })
+    .from(verificationTokens)
+    .where(
+      and(
+        eq(verificationTokens.identifier, email),
+        gt(verificationTokens.expires, new Date()),
+      ),
+    );
+  if (Number(recentTokens[0]?.value ?? 0) >= 5)
+    return { ok: false, message: "请求过于频繁，请稍后再试" };
   try {
-    await signIn("nodemailer", { email, redirectTo: callbackUrl });
-    return { ok: true, message: "登录链接已发送，请检查邮箱" };
+    await signIn("nodemailer", {
+      email,
+      redirectTo: callbackUrl,
+      redirect: false,
+    });
+    redirect("/login/verify");
   } catch (error) {
     if (error instanceof AuthError)
       return { ok: false, message: "登录邮件发送失败，请稍后重试" };
@@ -670,7 +688,10 @@ export async function respondToMembership(
 
       const confirmation = (
         await tx
-          .select({ id: teamConfirmations.id })
+          .select({
+            id: teamConfirmations.id,
+            auditStatus: teamConfirmations.auditStatus,
+          })
           .from(teamConfirmations)
           .where(eq(teamConfirmations.teamId, team.id))
           .limit(1)
@@ -689,7 +710,11 @@ export async function respondToMembership(
             ),
           );
         if (!confirmation) return;
-      } else if (confirmation && membership.consentedAt) {
+      } else if (
+        confirmation &&
+        membership.consentedAt &&
+        confirmation.auditStatus !== "rejected"
+      ) {
         fail("最终确认后不能退出队伍");
       }
 
@@ -971,11 +996,16 @@ export async function saveSubmission(
     await db.transaction(async (tx) => {
       const owned = await lockTeamForLeader(tx, user.id);
       const confirmation = await tx
-        .select({ id: teamConfirmations.id })
+        .select({
+          id: teamConfirmations.id,
+          auditStatus: teamConfirmations.auditStatus,
+        })
         .from(teamConfirmations)
         .where(eq(teamConfirmations.teamId, owned.team.id))
         .limit(1);
       if (!confirmation.length) fail("请先完成最终组队确认");
+      if (confirmation[0].auditStatus === "rejected")
+        fail("最终确认被驳回，请先重新提交最终确认");
       const values = {
         projectName,
         track,
@@ -1068,6 +1098,26 @@ export async function updateAudit(
         .update(teamConfirmations)
         .set({ ...values, exception: note })
         .where(eq(teamConfirmations.id, id));
+      if (decision === "rejected") {
+        const confirmation = (
+          await db
+            .select({ teamId: teamConfirmations.teamId })
+            .from(teamConfirmations)
+            .where(eq(teamConfirmations.id, id))
+            .limit(1)
+        )[0];
+        if (confirmation) {
+          await db
+            .update(submissions)
+            .set({
+              publicDisplay: false,
+              publicConsentAt: null,
+              auditStatus: "pending",
+              updatedAt: new Date(),
+            })
+            .where(eq(submissions.teamId, confirmation.teamId));
+        }
+      }
     } else {
       await db
         .update(submissions)
