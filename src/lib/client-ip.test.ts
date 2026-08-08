@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { clientIpFromHeaders, normalizeClientIp } from "./client-ip";
+import {
+  clientIpFromHeaders,
+  normalizeClientIp,
+  resolveEmailRateLimitIp,
+} from "./client-ip";
 
 describe("clientIpFromHeaders", () => {
   it("returns null unless the proxy is trusted", () => {
@@ -37,5 +41,30 @@ describe("normalizeClientIp", () => {
 
   it("normalizes bracketed IPv6 literals and casing", () => {
     expect(normalizeClientIp("[2001:DB8::1]")).toBe("2001:db8::1");
+  });
+});
+
+describe("resolveEmailRateLimitIp", () => {
+  it("returns null in production when no trusted client IP is available", () => {
+    expect(
+      resolveEmailRateLimitIp(new Headers(), false, "production"),
+    ).toBeNull();
+    expect(
+      resolveEmailRateLimitIp(new Headers(), true, "production"),
+    ).toBeNull();
+  });
+
+  it("keeps a deterministic local key outside production", () => {
+    expect(resolveEmailRateLimitIp(new Headers(), false, "development")).toBe(
+      "local-dev",
+    );
+  });
+
+  it("prefers a trusted forwarded IP over the fallback key", () => {
+    const headers = new Headers({ "x-forwarded-for": "203.0.113.20" });
+
+    expect(resolveEmailRateLimitIp(headers, true, "production")).toBe(
+      "203.0.113.20",
+    );
   });
 });
