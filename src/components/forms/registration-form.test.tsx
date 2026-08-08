@@ -42,4 +42,10 @@ describe("RegistrationForm", () => {
       "13800000000",
     );
   });
+
+  it("does not ask for an expected track during registration", () => {
+    render(<RegistrationForm participant={null} email="user@example.com" />);
+
+    expect(screen.queryByText("期望赛道")).not.toBeInTheDocument();
+  });
 });

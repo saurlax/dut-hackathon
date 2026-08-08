@@ -46,7 +46,6 @@ export const participantSchema = z.object({
     ])
     .default(""),
   availableTime: z.string().trim().max(100).default(""),
-  expectedTracks: stringList,
   registrationMethod: z.enum([
     "个人报名，正在找队伍",
     "已经加入队伍",

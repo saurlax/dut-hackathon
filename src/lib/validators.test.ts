@@ -190,4 +190,12 @@ describe("business validation", () => {
       name: "测试",
     });
   });
+  it("strips expected track values from participant registration data", () => {
+    const parsed = participantSchema.parse({
+      ...participantInput,
+      expectedTracks: ["人工智能"],
+    });
+
+    expect("expectedTracks" in parsed).toBe(false);
+  });
 });

@@ -40,7 +40,6 @@ async function main() {
       skills: ["产品", "前端"],
       techStack: ["Next.js", "PostgreSQL"],
       desiredRoles: ["全栈开发"],
-      expectedTracks: ["AI 应用"],
       registrationMethod: "个人报名，正在找队伍",
       bio: "用于本地开发的演示资料。",
       publicContact: "demo@example.com",

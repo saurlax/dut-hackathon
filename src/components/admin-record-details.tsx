@@ -156,10 +156,6 @@ export function ParticipantRecordDetails({
               label: "希望承担角色",
               value: <Tags values={participant.desiredRoles} />,
             },
-            {
-              label: "期望赛道",
-              value: <Tags values={participant.expectedTracks} />,
-            },
           ]}
         />
       </DetailSection>

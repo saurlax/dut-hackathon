@@ -43,6 +43,13 @@
       "when": 1786200000000,
       "tag": "0005_auto_approve_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786200000001,
+      "tag": "0006_overconfident_pestilence",
+      "breakpoints": true
     }
   ]
 }

@@ -134,10 +134,6 @@ export const participants = pgTable(
     bio: text("bio").notNull().default(""),
     portfolioUrl: text("portfolio_url").notNull().default(""),
     availableTime: text("available_time").notNull().default(""),
-    expectedTracks: text("expected_tracks")
-      .array()
-      .notNull()
-      .default(sql`ARRAY[]::text[]`),
     registrationMethod: text("registration_method")
       .notNull()
       .default("暂未确定"),

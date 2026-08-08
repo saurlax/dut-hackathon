@@ -4,12 +4,7 @@ import Link from "next/link";
 import { saveRegistration } from "@/app/actions";
 import { initialActionState } from "@/lib/domain";
 import type { participants } from "@/db/schema";
-import {
-  roleOptions,
-  skillOptions,
-  techStackOptions,
-  trackOptions,
-} from "@/lib/tag-options";
+import { roleOptions, skillOptions, techStackOptions } from "@/lib/tag-options";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,7 +43,6 @@ type RegistrationDraft = {
   skills: string[];
   techStack: string[];
   desiredRoles: string[];
-  expectedTracks: string;
   availableTime: string;
   teamRole: string;
   portfolioUrl: string;
@@ -75,7 +69,6 @@ function registrationDraft(
     skills: participant?.skills ?? [],
     techStack: participant?.techStack ?? [],
     desiredRoles: participant?.desiredRoles ?? [],
-    expectedTracks: participant?.expectedTracks.join(", ") ?? "",
     availableTime: participant?.availableTime ?? "",
     teamRole: participant?.teamRole ?? "",
     portfolioUrl: participant?.portfolioUrl ?? "",
@@ -237,15 +230,6 @@ export function RegistrationForm({
             label="希望承担角色"
             options={roleOptions}
             defaultValue={draft.desiredRoles}
-          />
-          <TagSelectField
-            name="expectedTracks"
-            label="期望赛道"
-            options={trackOptions}
-            defaultValue={draft.expectedTracks
-              .split(/[,，]/)
-              .map((item) => item.trim())
-              .filter(Boolean)}
           />
           <TextField
             name="availableTime"
